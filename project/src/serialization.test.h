@@ -1,3 +1,5 @@
+// C++11 (c) 2014 Vladimír Štill
+
 #include "serialization.h"
 
 using namespace serialization;

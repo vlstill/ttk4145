@@ -1,3 +1,5 @@
+// C++11    (c) 2014 Vladimír Štill <xstill@fi.muni.cz>
+
 #include <mutex>
 #include <deque>
 #include <condition_variable>

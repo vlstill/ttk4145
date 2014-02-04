@@ -1,4 +1,4 @@
-// C++11 (c) 2014 Vladimír Štill
+// C++11    (c) 2014 Vladimír Štill <xstill@fi.muni.cz>
 
 /* serialization support for network
  */
