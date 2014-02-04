@@ -1,5 +1,6 @@
 #include <mutex>
 #include <deque>
+#include <condition_variable>
 
 #ifndef SRC_CONCURRENT_QUEUE_H
 #define SRC_CONCURRENT_QUEUE_H
