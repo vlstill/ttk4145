@@ -1,2 +1,6 @@
 *.swp
 *~
+_darcs
+a.out
+*.o
+*.gch
