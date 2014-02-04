@@ -2,6 +2,8 @@
 #include <deque>
 #include <condition_variable>
 
+#include <wibble/maybe.h>
+
 #ifndef SRC_CONCURRENT_QUEUE_H
 #define SRC_CONCURRENT_QUEUE_H
 
@@ -29,6 +31,19 @@ struct ConcurrentQueue {
         T data = _queue.front();
         _queue.pop_front();
         return data;
+    }
+
+    /** Try getting head of queue, or nothing if it is empty
+     */
+    wibble::Maybe< T > tryDequeue() {
+        Guard g{ _lock };
+        if ( _queue.empty() ) {
+            return wibble::Maybe< T >::Nothing();
+        } else {
+            auto it = wibble::Maybe< T >::Just( _queue.front() );
+            _queue.pop_front();
+            return it;
+        }
     }
 
     /** not safe

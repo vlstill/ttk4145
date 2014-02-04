@@ -15,6 +15,18 @@ struct TestConcurrentQueue {
         assert( q.empty() );
     }
 
+    Test tryDequeue() {
+        ConcurrentQueue< int > q;
+        for ( int i = 0; i < 100; ++i )
+            q.enqueue( i );
+        for ( int i = 0; i < 100; ++i ) {
+            auto x = q.tryDequeue();
+            assert( !x.nothing() );
+            assert_eq( x.value(), i );
+        }
+        assert( q.empty() );
+    }
+
     struct Writer {
         int tid;
         ConcurrentQueue< std::pair< int, int > > &queue;
