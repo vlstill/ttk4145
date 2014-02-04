@@ -4,3 +4,4 @@ _darcs
 a.out
 *.o
 *.gch
+_build
