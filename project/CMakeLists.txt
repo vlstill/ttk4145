@@ -25,6 +25,7 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
 # the target itself
 file( GLOB ELEV_SRC src/*.cpp )
 add_library( elevator STATIC ${ELEV_SRC} )
+target_link_libraries( elevator comedi )
 
 # plug in unit test
 add_custom_target( unit )
