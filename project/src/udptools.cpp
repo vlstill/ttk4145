@@ -11,6 +11,9 @@
 
 namespace udp {
 
+const IPv4Address IPv4Address::any{ 0, 0, 0, 0 };
+const IPv4Address IPv4Address::localhost{ 127, 0, 0, 1 };
+
 sockaddr_in getNetAddress( Address addr ) {
     sockaddr_in netAddr;
     memset( &netAddr, 0, sizeof( sockaddr_in ) );

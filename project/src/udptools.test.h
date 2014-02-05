@@ -12,7 +12,7 @@ struct TestUdp {
     }
 
     Test send() {
-        udp::Address target{ udp::IPv4Address{ 127, 0, 0, 1 }, udp::Port{ 64123 } };
+        udp::Address target{ udp::IPv4Address::localhost, udp::Port{ 64123 } };
         udp::Packet packet{ "Test", 5 };
         packet.address() = target;
         udp::Socket sock{};
@@ -21,8 +21,8 @@ struct TestUdp {
     }
 
     Test sendRcv() {
-        udp::Address sndAddr{ udp::IPv4Address{ 127, 0, 0, 1 }, udp::Port{ 64124 } };
-        udp::Address target{ udp::IPv4Address{ 127, 0, 0, 1 }, udp::Port{ 64123 } };
+        udp::Address sndAddr{ udp::IPv4Address::localhost, udp::Port{ 64124 } };
+        udp::Address target{ udp::IPv4Address::localhost, udp::Port{ 64123 } };
 
         std::thread sender( [=]() {
                 sleep( 1 );

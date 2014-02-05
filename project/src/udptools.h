@@ -51,6 +51,9 @@ struct IPv4Address {
         return os;
     }
 
+    static const IPv4Address localhost;
+    static const IPv4Address any;
+
   private:
     uint32_t _addr;
 };
