@@ -20,6 +20,9 @@ struct IPv4Address {
     explicit IPv4Address( std::array< uint8_t, 4 > arr ) :
         _addr( (arr[ 0 ] << 24) | (arr[ 1 ] << 16) | (arr[ 2 ] << 8) | arr[ 3 ] )
     { }
+    IPv4Address( uint8_t a, uint8_t b, uint8_t c, uint8_t d ) :
+        _addr( (a << 24) | (b << 16) | (c << 8) | d )
+    { }
     IPv4Address() = default;
 
     /** read address */
@@ -79,8 +82,8 @@ struct Packet {
     explicit Packet( int size ) : _data( new char[ size ] ), _size( size ) {
         assert_leq( 1, size, "invalid size" );
     }
-    explicit Packet( const char *data, int size ) :
-        _data( new char[ size ] ), _size( size )
+    explicit Packet( const char *data, int size, Address addr = Address() ) :
+        _data( new char[ size ] ), _size( size ), _address( addr )
     {
         assert_leq( 1, size, "invalid size" );
         assert( data != nullptr, "data must be given" );
