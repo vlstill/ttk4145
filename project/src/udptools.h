@@ -36,6 +36,21 @@ struct IPv4Address {
         return arr;
     }
 
+    friend bool operator==( IPv4Address a, IPv4Address b ) {
+        return a._addr == b._addr;
+    }
+
+    friend bool operator!=( IPv4Address a, IPv4Address b ) {
+        return a._addr != b._addr;
+    }
+
+    friend std::ostream &operator<<( std::ostream &os, IPv4Address addr ) {
+        auto arr = addr.asArray();
+        os << int( arr[ 0 ] ) << "." << int( arr[ 1 ] ) << "."
+           << int( arr[ 2 ] ) << "." << int( arr[ 3 ] );
+        return os;
+    }
+
   private:
     uint32_t _addr;
 };
@@ -47,6 +62,13 @@ struct Port {
     Port() = default;
 
     uint16_t get() const { return _port; }
+
+    friend bool operator==( Port a, Port b ) { return a._port == b._port; }
+    friend bool operator!=( Port a, Port b ) { return a._port != b._port; }
+
+    friend std::ostream &operator<<( std::ostream &os, Port port ) {
+        return os << port._port;
+    }
 
   private:
     uint16_t _port;
@@ -66,6 +88,18 @@ struct Address {
 
     IPv4Address ip() const { return _ip; }
     Port port() const { return _port; }
+
+    friend bool operator==( Address a, Address b ) {
+        return a._ip == b._ip && a._port == b._port;
+    }
+
+    friend bool operator!=( Address a, Address b ) {
+        return a._ip != b._ip && a._port != b._port;
+    }
+
+    friend std::ostream &operator<<( std::ostream &os, Address addr ) {
+        return os << addr._ip << ":" << addr._port;
+    }
 
   private:
     IPv4Address _ip;
