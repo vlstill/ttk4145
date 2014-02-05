@@ -7,13 +7,16 @@
 #ifndef SRC_TEST_H
 #define SRC_TEST_H
 
-#define UNIT_TEST_STRUCT struct
 using Test = void;
 
 #define CODE_LOCATION test::Location( __FILE__, __LINE__, __func__ )
+
 #define assert( X, MSG ) test::assert_fn( !!(X), #X " (" MSG ")", CODE_LOCATION )
 #define assert_eq( X, Y, MSG ) test::assert_eq_fn( X, Y, #X " == " #Y " (" MSG ")", CODE_LOCATION )
+#define assert_neq( X, Y, MSG ) test::assert_neq_fn( X, Y, #X " != " #Y " (" MSG ")", CODE_LOCATION )
 #define assert_leq( X, Y, MSG ) test::assert_leq_fn( X, Y, #X " <= " #Y " (" MSG ")", CODE_LOCATION )
+#define assert_unimplemented()  test::assert_unimplemented_fn( CODE_LOCATION )
+#define assert_unreachable( MSG )    test::assert_unreachable_fn( "unreachable: " MSG, CODE_LOCATION )
 
 namespace test {
 
@@ -70,9 +73,23 @@ static inline void assert_eq_fn( const X &x, const Y &y, const char *what, Locat
 }
 
 template< typename X, typename Y >
+static inline void assert_neq_fn( const X &x, const Y &y, const char *what, Location loc ) {
+    if ( !( x != y ) )
+        throw AssertionFailed( what, loc );
+}
+
+template< typename X, typename Y >
 static inline void assert_leq_fn( const X &x, const Y &y, const char *what, Location loc ) {
     if ( !( x <= y ) )
         throw AssertionFailed( what, loc );
+}
+
+[[noreturn]] static inline void assert_unimplemented_fn( Location loc ) {
+    throw AssertionFailed( "unimplemented", loc );
+}
+
+[[noreturn]] static inline void assert_unreachable_fn( const char *what, Location loc ) {
+    throw AssertionFailed( what, loc );
 }
 
 }
