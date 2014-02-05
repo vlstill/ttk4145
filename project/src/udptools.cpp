@@ -56,7 +56,8 @@ bool Socket::sendPacket( Packet &packet ) {
     remote.sin_port = htons(packet.address().port().get()); // Port numbrt
     socklen_t l = sizeof(remote);
     int snd = sendto(_data->fd,packet.data(),packet.size(),0,(struct sockaddr *)&remote,l);
-    return snd>=0;
+    return (packet.size()>0);
+    
 }
 
 Packet Socket::recvPacket() {
