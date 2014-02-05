@@ -17,6 +17,7 @@
 #include "channels.h"
 #include "test.h"
 
+#ifdef O_HAVE_LIBCOMEDI
 #include <comedilib.h>
 
 
@@ -26,43 +27,43 @@ lowlevel::IO::IO( const char *device ){
 
     int status = 0;
 
-    it_g = comedi_open( device );
+    _comediHandle = comedi_open( device );
 
-    assert( it_g != nullptr, "Failed to open device" );
+    assert( _comediHandle != nullptr, "Failed to open device" );
 
     for (int i = 0; i < 8; i++) {
-        status |= comedi_dio_config(it_g, PORT1, i,     COMEDI_INPUT);
-        status |= comedi_dio_config(it_g, PORT2, i,     COMEDI_OUTPUT);
-        status |= comedi_dio_config(it_g, PORT3, i+8,   COMEDI_OUTPUT);
-        status |= comedi_dio_config(it_g, PORT4, i+16,  COMEDI_INPUT);
+        status |= comedi_dio_config(_comediHandle, PORT1, i,     COMEDI_INPUT);
+        status |= comedi_dio_config(_comediHandle, PORT2, i,     COMEDI_OUTPUT);
+        status |= comedi_dio_config(_comediHandle, PORT3, i+8,   COMEDI_OUTPUT);
+        status |= comedi_dio_config(_comediHandle, PORT4, i+16,  COMEDI_INPUT);
     }
 
     assert(status == 0, "Device failure");
 }
 
-
+lowlevel::IO::~IO() = default;
 
 void lowlevel::IO::io_set_bit( int channel ) {
-    comedi_dio_write(it_g, channel >> 8, channel & 0xff, 1);
+    comedi_dio_write(_comediHandle, channel >> 8, channel & 0xff, 1);
 }
 
 
 
 void lowlevel::IO::io_clear_bit( int channel ) {
-    comedi_dio_write(it_g, channel >> 8, channel & 0xff, 0);
+    comedi_dio_write(_comediHandle, channel >> 8, channel & 0xff, 0);
 }
 
 
 
 void lowlevel::IO::io_write_analog( int channel, int value ) {
-    comedi_data_write(it_g, channel >> 8, channel & 0xff, 0, AREF_GROUND, value);
+    comedi_data_write(_comediHandle, channel >> 8, channel & 0xff, 0, AREF_GROUND, value);
 }
 
 
 
-int lowlevel::IO::io_read_bit( int channel ) {
+bool lowlevel::IO::io_read_bit( int channel ) {
     unsigned int data=0;
-    comedi_dio_read(it_g, channel >> 8, channel & 0xff, &data);
+    comedi_dio_read(_comediHandle, channel >> 8, channel & 0xff, &data);
 
     return (int)data;
 }
@@ -71,11 +72,60 @@ int lowlevel::IO::io_read_bit( int channel ) {
 
 int lowlevel::IO::io_read_analog( int channel ) {
     lsampl_t data = 0;
-    comedi_data_read(it_g, channel >> 8, channel & 0xff, 0, AREF_GROUND, &data);
+    comedi_data_read(_comediHandle, channel >> 8, channel & 0xff, 0, AREF_GROUND, &data);
 
     return (int)data;
 }
 
+#else // O_HAVE_LIBCOMEDI
+
+#warning Using fake comedi library binding
+
+#include <map>
+
+struct comedi_t_struct {
+    std::map< int, bool > setBits;
+};
+
+lowlevel::IO::IO( const char *device ) {
+    _comediHandle = new comedi_t();
+}
+
+lowlevel::IO::~IO() {
+    delete _comediHandle;
+}
+
+void lowlevel::IO::io_set_bit( int channel ) {
+    _comediHandle->setBits[ channel ] = true;
+}
+
+
+
+void lowlevel::IO::io_clear_bit( int channel ) {
+    _comediHandle->setBits[ channel ] = false;
+}
+
+
+
+void lowlevel::IO::io_write_analog( int channel, int value ) {
+    assert_unimplemented();
+}
+
+
+
+bool lowlevel::IO::io_read_bit( int channel ) {
+    auto it = _comediHandle->setBits.find( channel );
+    assert( it != _comediHandle->setBits.end(), "Attempt to read value which was not set" );
+    return it->second;
+}
+
+
+
+int lowlevel::IO::io_read_analog( int channel ) {
+    assert_unimplemented();
+}
+
+#endif // O_HAVE_LIBCOMEDI
 
 
 

@@ -30,6 +30,7 @@ struct IO {
       @return Non-zero on success and 0 on failure
     */
     IO( const char *device = nullptr );
+    ~IO();
 
 
 
@@ -63,7 +64,7 @@ struct IO {
       @param channel Channel to read from.
       @return Value read.
     */
-    int io_read_bit(int channel);
+    bool io_read_bit(int channel);
 
 
 
@@ -76,7 +77,7 @@ struct IO {
     int io_read_analog(int channel);
 
   private:
-    comedi_t *it_g;
+    comedi_t *_comediHandle;
 };
 
 }
