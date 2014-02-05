@@ -13,11 +13,25 @@ macro(appendFlag flags value)
   endforeach( F )
 endmacro(appendFlag)
 
+macro( disabling name reason )
+    message( "-- WARNING: ${name} DISABLED. ${reason}" )
+    set( DISABLED "${DISABLED} ${name}" )
+endmacro()
+
 
 # setup compiler flags
 set( CMAKE_REQUIRED_FLAGS "-std=c++11" ) # for the benefit of GCC
 appendFlag( "CXX" "-std=c++11" )
 
+
+# allow compilation even without libComedi
+option( LIBCOMEDI "Whether to use real libComedi driver" ON )
+
+find_path( LIBCOMEDI_PATH comedilib.h )
+if ( NOT LIBCOMEDI_PATH )
+    set( LIBCOMEDI OFF )
+    disabling( "LIBCOMEDI" "" "libcomedi.h not found" )
+endif()
 
 #
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
@@ -25,7 +39,11 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
 # the target itself
 file( GLOB ELEV_SRC src/*.cpp )
 add_library( elevator STATIC ${ELEV_SRC} )
-target_link_libraries( elevator comedi )
+
+if ( LIBCOMEDI )
+    add_definitions( -DO_HAVE_LIBCOMEDI )
+    target_link_libraries( elevator comedi )
+endif()
 
 # plug in unit test
 add_custom_target( unit )
