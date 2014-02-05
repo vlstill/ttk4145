@@ -105,7 +105,7 @@ struct Packet {
 
   private:
     Address _address;
-    std::unique_ptr< char > _data;
+    std::unique_ptr< char[] > _data;
     int _size;
 };
 
@@ -122,7 +122,7 @@ struct Socket {
     void setRecvBufferSize( int size );
     /* note: we don't need send buffer, as packet is already allocated when sending */
 
-    bool sendPacket( Packet );
+    bool sendPacket( Packet & );
     Packet recvPacket();
 
     Address localAddress() const;
