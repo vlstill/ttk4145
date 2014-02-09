@@ -76,6 +76,7 @@ endif()
 
 # plug in unit test
 add_custom_target( unit )
+add_definitions( -DPOSIX ) # required by wibble
 add_subdirectory( wibble )
 include( wibble/test.cmake )
 
