@@ -2,9 +2,29 @@
 # parts of this script are inspired by build-script of the DIVINE model-checker
 # (DIVINE is licenced under BSD licence, so this should be ok).
 
+cmake_minimum_required(VERSION 2.8)
+
+SET( CMAKE_CXX_FLAGS "-Wall" CACHE STRING "" )
+SET( CMAKE_C_FLAGS "-Wall" CACHE STRING "" )
+
+# this must be set BEFORE project
+SET( CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" )
+SET( CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING "" )
+
+SET( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG" CACHE STRING "" )
+SET( CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG" CACHE STRING "" )
+
+SET( CMAKE_CXX_FLAGS_DEBUG "-O0 -g" CACHE STRING "" )
+SET( CMAKE_C_FLAGS_DEBUG "-O0 -g" CACHE STRING "" )
+
 project( elevator )
 
-cmake_minimum_required(VERSION 2.8)
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING
+        "Choose the type of build options are: Debug Release RelWithDebInfo. Defaulting to Debug!"
+         FORCE)
+     message( "-- WARNING: Debug chosen for build type, please specify with CMAKE_BUILD_TYPE" )
+endif()
 
 # from DIVINE
 macro(appendFlag flags value)
@@ -26,11 +46,20 @@ appendFlag( "CXX" "-std=c++11" )
 
 # allow compilation even without libComedi
 option( LIBCOMEDI "Whether to use real libComedi driver" ON )
+option( WARNING "Enable more warnings and some werror" OFF )
 
 find_path( LIBCOMEDI_PATH comedilib.h )
 if ( NOT LIBCOMEDI_PATH )
     set( LIBCOMEDI OFF )
     disabling( "LIBCOMEDI" "" "libcomedi.h not found" )
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set( WARNING ON )
+endif()
+
+if( WARNING )
+    appendFlag( "C;CXX" "-Werror -Wextra -Wno-error=extra -Werror=sign-compare -Wno-error=\\\\#warnings" )
 endif()
 
 #
