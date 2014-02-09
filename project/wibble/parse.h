@@ -2,12 +2,12 @@
 //             (c) 2013 Jan Kriho
 // Support code for writing backtracking recursive-descent parsers
 #include <string>
-#include <cassert>
 #include <deque>
 #include <vector>
 #include <map>
 #include <queue>
 
+#include <wibble/test.h>
 #include <wibble/regexp.h>
 
 #ifndef WIBBLE_PARSE_H
@@ -182,10 +182,12 @@ struct Lexer {
         }
     }
 
-    void skipWhitespace() {
-        while ( !eof() && isspace( window( 1 )[ 0 ] ) )
+    void skipWhile( int (*pred)(int) ) {
+        while ( !eof() && pred( window( 1 )[ 0 ] ) )
             consume( 1 );
     }
+
+    void skipWhitespace() { skipWhile( isspace ); }
 
     Token decide() {
         Token t;
@@ -198,8 +200,11 @@ struct Lexer {
 };
 
 template< typename Token, typename Stream >
-struct ParseContext {
-    Stream &stream;
+struct ParseContext
+{
+    Stream *_stream;
+    Stream &stream() { assert( _stream ); return *_stream; }
+
     std::deque< Token > window;
     int window_pos;
     int position;
@@ -240,7 +245,7 @@ struct ParseContext {
                 << "expected " << fail.expected
                 << " at line " << t.position.line
                 << ", column " << t.position.column
-                << ", but seen " << Token::tokenName[ t.id ] << " '" << t.data << "'"
+                << ", but seen " << Token::tokenName[ static_cast< int >( t.id ) ] << " '" << t.data << "'"
                 << std::endl;
                 return;
             case Fail::Semantic:
@@ -284,7 +289,7 @@ struct ParseContext {
         if ( int( window.size() ) <= window_pos ) {
             Token t;
             do {
-                t = stream.remove();
+                t = stream().remove();
             } while ( t.id == Token::Comment ); // XXX
             window.push_back( t );
         }
@@ -306,7 +311,9 @@ struct ParseContext {
         return children.back();
     }
 
-    ParseContext( Stream &s, std::string name ) : stream( s ), window_pos( 0 ), position( 0 ), name( name ) {}
+    ParseContext( Stream &s, std::string name )
+        : _stream( &s ), window_pos( 0 ), position( 0 ), name( name )
+    {}
 };
 
 template< typename Token, typename Stream >
@@ -368,7 +375,7 @@ struct Parser {
         if ( t.id == id )
             return t;
         rewind( 1 );
-        fail( Token::tokenName[id].c_str() );
+        fail( Token::tokenName[ static_cast< int >( id ) ].c_str() );
     }
 
 
@@ -433,7 +440,20 @@ struct Parser {
             return false;
         }
     }
-    
+
+#if __cplusplus >= 201103L
+    template< typename F >
+    auto maybe( F f ) -> decltype( f(), true ) {
+        int fallback = position();
+        try {
+            f(); return true;
+        } catch ( Fail fail ) {
+            rewind( position() - fallback );
+            return false;
+        }
+    }
+#endif
+
     bool maybe( TokenId id ) {
         int fallback = position();
         try {
@@ -463,6 +483,9 @@ struct Parser {
         return maybe( f );
     }
 
+    // NB. Accepts any ordering of sub-parsers, some possibly more than
+    // once. It is slightly bogus and won't catch all errors in most reasonable
+    // languages. Avoid.
     template< typename F, typename... Args >
     bool arbitrary( F f, Args... args ) {
         bool retval = arbitrary( args... );
@@ -483,7 +506,7 @@ struct Parser {
     void list( I i, void (F::*sep)() ) {
         int fallback = position();
         try {
-            while ( true ) {                
+            while ( true ) {
                 *i++ = T( context() );
                 fallback = position();
                 (static_cast< F* >( this )->*sep)();

@@ -1,7 +1,7 @@
 /* -*- C++ -*-
  * OO encapsulation of Posix threads
  *
- * Copyright (C) 2003--2008  Enrico Zini <enrico@debian.org>
+ * Copyright (C) 2003--2013  Enrico Zini <enrico@debian.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -37,21 +37,11 @@
 namespace wibble {
 namespace sys {
 
-static inline void sleep( int secs ) {
-#ifdef _WIN32
-    Sleep( secs * 1000 );
-#else
-    ::sleep( secs );
-#endif
-}
+/// Portable version of sleep
+void sleep( int secs );
 
-static inline void usleep( int usecs ) {
-#ifdef _WIN32
-    Sleep( usecs / 1000 );
-#else
-    ::usleep( usecs );
-#endif
-}
+/// Portable version of usleep
+void usleep( int usecs );
 
 /**
  * Encapsulates a thread

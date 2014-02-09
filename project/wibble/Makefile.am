@@ -1,6 +1,6 @@
 SUBDIRS = .
 
-INCLUDES = -I$(top_srcdir)
+INCLUDES = -I$(top_srcdir) -I$(top_builddir)
 
 if WIBBLE_STANDALONE
 INCLUDES += -DWIBBLE_COMPILE_TESTSUITE -DTEST_DIR=\"`pwd`/$(top_builddir)/wibble/tests/work/\"
@@ -32,6 +32,7 @@ wibble_HEADERS = \
     sfinae.h \
     singleton.h \
     string.h \
+    test.h \
     tests.h
 
 wibblesys_HEADERS = \
@@ -128,7 +129,7 @@ libwibble_la_SOURCES = \
 #libwibble_la_LIBADD = 
 #libwibble_la_LDFLAGS = -no-undefined
 
-EXTRA_DIST = README.repo libwibble.m4 libwibble.pc.in \
+EXTRA_DIST = README libwibble.m4 libwibble.pc.in \
     amorph.test.h \
     consumer.test.h \
     empty.test.h \

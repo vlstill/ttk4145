@@ -10,7 +10,7 @@ check_cxx_source_compiles(
       return 0;
   }" HAVE_STRUCT_DIRENT_D_TYPE )
 
-configure_file( ${wibble_SOURCE_DIR}/config.h.in ${wibble_BINARY_DIR}/config.h )
+configure_file( ${wibble_SOURCE_DIR}/config.h.cmake-in ${wibble_BINARY_DIR}/config.h )
 add_definitions( -DHAVE_CONFIG_H )
 
 # glob through source files/headers
@@ -65,7 +65,9 @@ wibble_check_target( wibble-test )
 
 set( prefix "${CMAKE_INSTALL_PREFIX}" )
 set( exec_prefix "${prefix}/bin" )
-set( libdir "${prefix}/lib" )
+if (NOT DEFINED libdir)
+	set( libdir "${prefix}/lib" )
+endif()
 set( includedir "${prefix}/include" )
 
 # cmake-time configuration

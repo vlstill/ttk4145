@@ -1,8 +1,11 @@
+#include <wibble/config.h>
+
 #include <wibble/sys/fs.h>
 #include <wibble/sys/process.h>
 #include <wibble/string.h>
 #include <wibble/exception.h>
 #include <fstream>
+#include <dirent.h> // opendir, closedir
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
@@ -16,46 +19,69 @@
 #include <shellapi.h>
 #endif
 
-#ifdef HAVE_CONFIG_H
-/* Conditionally include config.h so there is a way of enabling the fast
- * Directory::isdir implementation if HAVE_STRUCT_DIRENT_D_TYPE is available
- */
-#include <wibble/config.h>
-#endif
-
 namespace wibble {
 namespace sys {
 namespace fs {
 
 #ifdef POSIX
-std::unique_ptr<struct stat> stat(const std::string& pathname)
+std::auto_ptr<struct stat64> stat(const std::string& pathname)
 {
-	std::unique_ptr<struct stat> res(new struct stat);
-	if (::stat(pathname.c_str(), res.get()) == -1) {
+	std::auto_ptr<struct stat64> res(new struct stat64);
+	if (::stat64(pathname.c_str(), res.get()) == -1) {
 		if (errno == ENOENT)
-			return std::unique_ptr<struct stat>();
+			return std::auto_ptr<struct stat64>();
 		else
 			throw wibble::exception::System("getting file information for " + pathname);
         }
 	return res;
 }
 
-bool isDirectory(const std::string& pathname)
-{
-    return isdir(pathname);
-}
+#define common_stat_body(testfunc) \
+    struct stat st; \
+    if (::stat(pathname.c_str(), &st) == -1) { \
+        if (errno == ENOENT) \
+            return false; \
+        else \
+            throw wibble::exception::System("getting file information for " + pathname); \
+    } \
+    return testfunc(st.st_mode)
 
 bool isdir(const std::string& pathname)
 {
-	struct stat st;
-	if (::stat(pathname.c_str(), &st) == -1) {
-		if (errno == ENOENT)
-			return false;
-		else
-			throw wibble::exception::System("getting file information for " + pathname);
-        }
-	return S_ISDIR(st.st_mode);
+    common_stat_body(S_ISDIR);
 }
+
+bool isblk(const std::string& pathname)
+{
+    common_stat_body(S_ISBLK);
+}
+
+bool ischr(const std::string& pathname)
+{
+    common_stat_body(S_ISCHR);
+}
+
+bool isfifo(const std::string& pathname)
+{
+    common_stat_body(S_ISFIFO);
+}
+
+bool islnk(const std::string& pathname)
+{
+    common_stat_body(S_ISLNK);
+}
+
+bool isreg(const std::string& pathname)
+{
+    common_stat_body(S_ISREG);
+}
+
+bool issock(const std::string& pathname)
+{
+    common_stat_body(S_ISSOCK);
+}
+
+#undef common_stat_body
 
 bool access(const std::string &s, int m)
 {
@@ -77,16 +103,40 @@ std::string abspath(const std::string& pathname)
 
 void mkdirIfMissing(const std::string& dir, mode_t mode)
 {
-	std::unique_ptr<struct stat> st = wibble::sys::fs::stat(dir);
-	if (st.get() == NULL)
-	{
-		// If it does not exist, make it
-		if (::mkdir(dir.c_str(), mode) == -1)
-			throw wibble::exception::System("creating directory " + dir);
-	} else if (! S_ISDIR(st->st_mode)) {
-		// If it exists but it is not a directory, complain
-		throw wibble::exception::Consistency("ensuring path " + dir + " exists", dir + " exists but it is not a directory");
-	}
+    for (int i = 0; i < 5; ++i)
+    {
+        // If it does not exist, make it
+        if (::mkdir(dir.c_str(), mode) != -1)
+            return;
+
+        // throw on all errors except EEXIST. Note that EEXIST "includes the case
+        // where pathname is a symbolic link, dangling or not."
+        if (errno != EEXIST)
+            throw wibble::exception::System("creating directory " + dir);
+
+        // Ensure that, if dir exists, it is a directory
+        std::auto_ptr<struct stat64> st = wibble::sys::fs::stat(dir);
+        if (st.get() == NULL)
+        {
+            // Either dir has just been deleted, or we hit a dangling
+            // symlink.
+            //
+            // Retry creating a directory: the more we keep failing, the more
+            // the likelyhood of a dangling symlink increases.
+            //
+            // We could lstat here, but it would add yet another case for a
+            // race condition if the broken symlink gets deleted between the
+            // stat and the lstat.
+            continue;
+        }
+        else if (! S_ISDIR(st->st_mode))
+            // If it exists but it is not a directory, complain
+            throw wibble::exception::Consistency("ensuring path " + dir + " exists", dir + " exists but it is not a directory");
+        else
+            // If it exists and it is a directory, we're fine
+            return;
+    }
+    throw wibble::exception::Consistency("ensuring path " + dir + " exists", dir + " exists and looks like a dangling symlink");
 }
 
 void mkpath(const std::string& dir)
@@ -104,22 +154,29 @@ void mkFilePath(const std::string& file)
 	if (pos != std::string::npos)
 		mkpath(file.substr(0, pos));
 }
-#endif
-std::string readFile( const std::string &file )
-{
-    std::ifstream in( file.c_str(), std::ios::binary );
+#endif // POSIX
+
+std::string readFile( std::ifstream &in ) {
     if (!in.is_open())
-        throw wibble::exception::System( "reading file " + file );
-    std::string ret;
+        throw wibble::exception::System( "reading filestream" );
     size_t length;
 
     in.seekg(0, std::ios::end);
     length = in.tellg();
     in.seekg(0, std::ios::beg);
-    char *buffer = static_cast<char *>( alloca( length ) );
 
-    in.read(buffer, length);
-    return std::string( buffer, length );
+    std::string buffer;
+    buffer.resize( length );
+
+    in.read( &buffer[ 0 ], length );
+    return buffer;
+}
+
+std::string readFile( const std::string &file ) {
+    std::ifstream in( file.c_str(), std::ios::binary );
+    if (!in.is_open())
+        throw wibble::exception::System( "reading file " + file );
+    return readFile( in );
 }
 
 void writeFile( const std::string &file, const std::string &data )
@@ -167,7 +224,7 @@ void rmtree(const std::string& dir)
     for (Directory::const_iterator i = d.begin(); i != d.end(); ++i)
     {
         if (*i == "." || *i == "..") continue;
-        if (d.isdir(i))
+        if (i.isdir())
             rmtree(str::joinpath(dir, *i));
         else
             unlink(str::joinpath(dir, *i));
@@ -175,46 +232,151 @@ void rmtree(const std::string& dir)
     rmdir(dir);
 }
 
+Directory::const_iterator::~const_iterator()
+{
+    if (d) delete d;
+}
+
+Directory::const_iterator& Directory::const_iterator::operator=(const Directory::const_iterator& i)
+{
+    // Catch a = a
+    if (&i == this) return *this;
+    dir = i.dir;
+    d = i.d;
+    const_iterator* wi = const_cast<const_iterator*>(&i);
+    // Turn i into an end iterator
+    wi->dir = 0;
+    wi->d = 0;
+    return *this;
+}
+
+Directory::const_iterator& Directory::const_iterator::operator++()
+{
+    if (!d) d = new struct dirent;
+
+    struct dirent* dres;
+    int res = readdir_r(static_cast<DIR*>(dir->dir), d, &dres);
+    if (res != 0)
+        throw wibble::exception::System(res, "reading directory " + dir->m_path);
+
+    if (dres == NULL)
+    {
+        // Turn into an end iterator
+        dir = 0;
+        delete d;
+        d = 0;
+    }
+    return *this;
+}
+
+std::string Directory::const_iterator::operator*() const { return d->d_name; }
+
+bool Directory::const_iterator::isdir() const
+{
+#ifdef HAVE_STRUCT_DIRENT_D_TYPE
+    if (d->d_type == DT_DIR)
+        return true;
+    if (d->d_type != DT_UNKNOWN)
+        return false;
+#endif
+    // No d_type, we'll need to stat
+    return wibble::sys::fs::isdir(wibble::str::joinpath(dir->m_path, d->d_name));
+}
+
+bool Directory::const_iterator::isblk() const
+{
+#ifdef HAVE_STRUCT_DIRENT_D_TYPE
+    if (d->d_type == DT_BLK)
+        return true;
+    if (d->d_type != DT_UNKNOWN)
+        return false;
+#endif
+    // No d_type, we'll need to stat
+    return wibble::sys::fs::isblk(wibble::str::joinpath(dir->m_path, d->d_name));
+}
+
+bool Directory::const_iterator::ischr() const
+{
+#ifdef HAVE_STRUCT_DIRENT_D_TYPE
+    if (d->d_type == DT_CHR)
+        return true;
+    if (d->d_type != DT_UNKNOWN)
+        return false;
+#endif
+    // No d_type, we'll need to stat
+    return wibble::sys::fs::ischr(wibble::str::joinpath(dir->m_path, d->d_name));
+}
+
+bool Directory::const_iterator::isfifo() const
+{
+#ifdef HAVE_STRUCT_DIRENT_D_TYPE
+    if (d->d_type == DT_FIFO)
+        return true;
+    if (d->d_type != DT_UNKNOWN)
+        return false;
+#endif
+    // No d_type, we'll need to stat
+    return wibble::sys::fs::isfifo(wibble::str::joinpath(dir->m_path, d->d_name));
+}
+
+bool Directory::const_iterator::islnk() const
+{
+#ifdef HAVE_STRUCT_DIRENT_D_TYPE
+    if (d->d_type == DT_LNK)
+        return true;
+    if (d->d_type != DT_UNKNOWN)
+        return false;
+#endif
+    // No d_type, we'll need to stat
+    return wibble::sys::fs::islnk(wibble::str::joinpath(dir->m_path, d->d_name));
+}
+
+bool Directory::const_iterator::isreg() const
+{
+#ifdef HAVE_STRUCT_DIRENT_D_TYPE
+    if (d->d_type == DT_REG)
+        return true;
+    if (d->d_type != DT_UNKNOWN)
+        return false;
+#endif
+    // No d_type, we'll need to stat
+    return wibble::sys::fs::isreg(wibble::str::joinpath(dir->m_path, d->d_name));
+}
+
+bool Directory::const_iterator::issock() const
+{
+#ifdef HAVE_STRUCT_DIRENT_D_TYPE
+    if (d->d_type == DT_SOCK)
+        return true;
+    if (d->d_type != DT_UNKNOWN)
+        return false;
+#endif
+    // No d_type, we'll need to stat
+    return wibble::sys::fs::issock(wibble::str::joinpath(dir->m_path, d->d_name));
+}
+
+
+Directory::Directory(const std::string& path)
+    : m_path(path), dir(0)
+{
+    dir = opendir(m_path.c_str());
+    if (!dir)
+        throw wibble::exception::System("reading directory " + m_path);
+}
+
+Directory::~Directory()
+{
+    if (dir) closedir(static_cast<DIR*>(dir));
+}
+
 Directory::const_iterator Directory::begin()
 {
-	DIR* dir = opendir(m_path.c_str());
-	if (!dir)
-		throw wibble::exception::System("reading directory " + m_path);
-	return const_iterator(dir);
+    return const_iterator(*this);
 }
 
 Directory::const_iterator Directory::end() const
 {
-	return const_iterator();
-}
-
-bool Directory::valid()
-{
-	// Check that the directory exists
-	std::unique_ptr<struct stat> st = stat(path());
-	if (st.get() == NULL)
-		return false;
-	// Check that it is a directory
-	if (!S_ISDIR(st->st_mode))
-		return false;
-	return true;
-}
-
-bool Directory::isdir(const const_iterator& i) const
-{
-#ifdef HAVE_STRUCT_DIRENT_D_TYPE
-	if (i->d_type == DT_DIR)
-		return true;
-	if (i->d_type != DT_UNKNOWN)
-		return false;
-#endif
-	// No d_type, we'll need to stat
-	std::unique_ptr<struct stat> st = stat(wibble::str::joinpath(m_path, *i));
-	if (st.get() == 0)
-		return false;
-	if (S_ISDIR(st->st_mode))
-		return true;
-    return false;
+    return const_iterator();
 }
 
 std::string mkdtemp( std::string tmpl )
@@ -223,8 +385,7 @@ std::string mkdtemp( std::string tmpl )
     strcpy( _tmpl, tmpl.c_str() );
     return ::mkdtemp( _tmpl );
 }
-
-#endif
+#endif // POSIX
 
 #ifdef _WIN32
 bool access(const std::string &s, int m)

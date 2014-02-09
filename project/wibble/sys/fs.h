@@ -2,12 +2,12 @@
 #define WIBBLE_SYS_DIRECTORY_H
 
 #include <string>
-#include <dirent.h>		// opendir, closedir
-#include <memory>		// auto_ptr
-#include <sys/types.h>		// mode_t
-#include <sys/stat.h>		// struct stat
+#include <memory>       // auto_ptr
+#include <sys/types.h>  // mode_t
+#include <sys/stat.h>   // struct stat
+#include <unistd.h>     // access
 
-struct stat;
+struct dirent;
 
 namespace wibble {
 namespace sys {
@@ -18,7 +18,7 @@ namespace fs {
  * If the file does not exist, return NULL.
  * Raises exceptions in case of errors.
  */
-std::unique_ptr<struct stat> stat(const std::string& pathname);
+std::auto_ptr<struct stat64> stat(const std::string& pathname);
 
 /// access() a filename
 bool access(const std::string& s, int m);
@@ -37,7 +37,7 @@ std::string mkdtemp( std::string templ );
 /// Create the given directory, if it does not already exists.
 /// It will complain if the given pathname already exists but is not a
 /// directory.
-void mkdirIfMissing(const std::string& dir, mode_t mode);
+void mkdirIfMissing(const std::string& dir, mode_t mode = 0777);
 
 /// Create all the component of the given directory, including the directory
 /// itself.
@@ -49,6 +49,9 @@ void mkFilePath(const std::string& file);
 
 /// Read whole file into memory. Throws exceptions on failure.
 std::string readFile(const std::string &file);
+
+/// Read whole file into memory. Throws exceptions on failure.
+std::string readFile(std::ifstream &file);
 
 /// Write \a data to \a file, replacing existing contents if it already exists
 void writeFile(const std::string &file, const std::string &data);
@@ -79,27 +82,46 @@ void rmtree(const std::string& dir);
  */
 bool isdir(const std::string& pathname);
 
-/// same as isdir, but with a legacy clumsy name
-bool isDirectory(const std::string& pathname) __attribute__ ((deprecated));
+/// Same as isdir but checks for block devices
+bool isblk(const std::string& pathname);
+
+/// Same as isdir but checks for character devices
+bool ischr(const std::string& pathname);
+
+/// Same as isdir but checks for FIFOs
+bool isfifo(const std::string& pathname);
+
+/// Same as isdir but checks for symbolic links
+bool islnk(const std::string& pathname);
+
+/// Same as isdir but checks for regular files
+bool isreg(const std::string& pathname);
+
+/// Same as isdir but checks for sockets
+bool issock(const std::string& pathname);
+
 
 /// Nicely wrap access to directories
 class Directory
 {
-	std::string m_path;
+protected:
+    std::string m_path;
+    // DIR* pointer
+    void* dir;
 
 public:
-	class const_iterator
-	{
-		DIR* dir;
-		struct dirent* d;
+    class const_iterator
+    {
+        Directory* dir;
+        struct dirent* d;
 
-	public:
-		// Create an end iterator
-		const_iterator() : dir(0), d(0) {}
-		// Create a begin iterator
-		const_iterator(DIR* dir) : dir(dir), d(0) { ++(*this); }
-		// Cleanup properly
-		~const_iterator() { if (dir) closedir(dir); }
+    public:
+        // Create an end iterator
+        const_iterator() : dir(0), d(0) {}
+        // Create a begin iterator
+        const_iterator(Directory& dir) : dir(&dir), d(0) { ++(*this); }
+        // Cleanup properly
+        ~const_iterator();
 
 		// auto_ptr style copy semantics
 		const_iterator(const const_iterator& i)
@@ -110,32 +132,11 @@ public:
 			wi->dir = 0;
 			wi->d = 0;
 		}
-		const_iterator& operator=(const const_iterator& i)
-		{
-			// Catch a = a
-			if (&i == this) return *this;
-			if (dir) closedir(dir);
-			dir = i.dir;
-			d = i.d;
-			const_iterator* wi = const_cast<const_iterator*>(&i);
-			wi->dir = 0;
-			wi->d = 0;
-                        return *this;
-		}
+        const_iterator& operator=(const const_iterator& i);
 
-		const_iterator& operator++()
-		{
-			if ((d = readdir(dir)) == 0)
-			{
-				closedir(dir);
-				dir = 0;
-			}
-			return *this;
-		}
+        const_iterator& operator++();
 
-		std::string operator*() const { return d->d_name; }
-		struct dirent* operator->() { return d; }
-		const struct dirent* operator->() const { return d; }
+        std::string operator*() const;
 
 		bool operator==(const const_iterator& iter) const
 		{
@@ -145,24 +146,40 @@ public:
 		{
 			return dir != iter.dir || d != iter.d;
 		}
-	};
 
-	Directory(const std::string& path) : m_path(path) {}
+        /// @return true if we refer to a directory, else false
+        bool isdir() const;
+
+        /// @return true if we refer to a block device, else false
+        bool isblk() const;
+
+        /// @return true if we refer to a character device, else false
+        bool ischr() const;
+
+        /// @return true if we refer to a named pipe (FIFO).
+        bool isfifo() const;
+
+        /// @return true if we refer to a symbolic link.
+        bool islnk() const;
+
+        /// @return true if we refer to a regular file.
+        bool isreg() const;
+
+        /// @return true if we refer to a Unix domain socket.
+        bool issock() const;
+    };
+
+    Directory(const std::string& path);
+    ~Directory();
 
 	/// Pathname of the directory
 	const std::string& path() const { return m_path; }
-
-	/// Check that the directory exists and is a directory
-	bool valid();
 
 	/// Begin iterator
 	const_iterator begin();
 
 	/// End iterator
 	const_iterator end() const;
-
-    /// @return true if \a i points to a directory, else false
-    bool isdir(const const_iterator& i) const;
 };
 
 }

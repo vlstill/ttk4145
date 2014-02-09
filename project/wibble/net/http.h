@@ -26,6 +26,7 @@
 #include <wibble/regexp.h>
 #include <wibble/net/mime.h>
 #include <iosfwd>
+#include <stdexcept>
 
 namespace wibble {
 namespace net {
@@ -33,7 +34,7 @@ namespace http {
 
 struct Request;
 
-struct error
+struct error : public std::exception
 {
     int code;
     std::string desc;
@@ -43,9 +44,11 @@ struct error
         : code(code), desc(desc) {}
     error(int code, const std::string& desc, const std::string& msg)
         : code(code), desc(desc), msg(msg) {}
+    virtual ~error() throw () {}
+
+    virtual const char* what() const throw ();
 
     virtual void send(Request& req);
-
 };
 
 struct error400 : public error
@@ -87,6 +90,8 @@ struct Request
     wibble::Splitter space_splitter;
 
     wibble::net::mime::Reader mime_reader;
+
+    std::map<std::string, std::string> extra_response_headers;
 
     Request();
 
@@ -142,6 +147,9 @@ struct Request
 
     /// Send the HTTP date header
     void send_date_header();
+
+    /// Send headers in extra_response_headers
+    void send_extra_response_headers();
 
     /// Send a string as result
     void send_result(const std::string& content, const std::string& content_type="text/html; charset=utf-8", const std::string& filename=std::string());

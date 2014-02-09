@@ -47,7 +47,6 @@ using namespace wibble::operators;
 static int vasprintf (char **, const char *, va_list);
 #endif
 
-std::string fmt( const char* f, ... ) __attribute__ ((deprecated));
 std::string fmtf( const char* f, ... );
 template< typename T > inline std::string fmt(const T& val);
 
@@ -274,6 +273,20 @@ inline std::string joinpath(const std::string& path1, const std::string& path2)
 			return path1 + '/' + path2;
 }
 
+// append path2 to path1 if path2 is not absolute, otherwise return path2
+inline std::string appendpath( const std::string &path1, const std::string &path2 ) {
+#ifdef POSIX
+    if ( path2.size() >= 1 && path2[ 0 ] == '/' )
+        return path2;
+#endif
+#ifdef WIN32
+    if ( ( path2.size() >= 3 && path2[ 1 ] == ':' && path2[ 2 ] == '\\' )
+            || ( path2.size() >= 2 && path2[ 0 ] == '\\' && path2[ 1 ] == '\\' ) )
+        return path2;
+#endif
+    return joinpath( path1, path2 );
+}
+
 /// Urlencode a string
 std::string urlencode(const std::string& str);
 
@@ -293,9 +306,9 @@ std::string decodeBase64(const std::string& str);
  *
  * Example code:
  * \code
- *   str::Split splitter("/");
+ *   str::Split splitter("/", myString);
  *   vector<string> split;
- *   std::copy(splitter.begin(myString), splitter.end(), back_inserter(split));
+ *   std::copy(splitter.begin(), splitter.end(), back_inserter(split));
  * \endcode
  */
 class Split
@@ -457,8 +470,59 @@ public:
 	const_iterator end() { return const_iterator(); }
 };
 
+/**
+ * Escape the string so it can safely used as a C string inside double quotes
+ */
+std::string c_escape(const std::string& str);
+
+/**
+ * Unescape a C string, stopping at the first double quotes or at the end of
+ * the string.
+ *
+ * lenParsed is set to the number of characters that were pased (which can be
+ * greather than the size of the resulting string in case escapes were found)
+ */
+std::string c_unescape(const std::string& str, size_t& lenParsed);
+
+
 }
 }
+
+// _WIN32 std::to_string hack
+#if defined( _WIN32 ) \
+    && __GNUC__ == 4 && __GNUC_MINOR__ == 7 \
+    && __cplusplus >= 201103L
+
+#warning WIBBLE string defines std::to_string (which is missing on GCC < 4.8 on win)
+#include <stdexcept>
+
+namespace std {
+    static inline std::string to_string( int value ) { return wibble::str::fmt( value ); }
+    static inline std::string to_string( long value ) { return wibble::str::fmt( value ); }
+    static inline std::string to_string( long long value ) { return wibble::str::fmt( value ); }
+    static inline std::string to_string( unsigned value ) { return wibble::str::fmt( value ); }
+    static inline std::string to_string( unsigned long value ) { return wibble::str::fmt( value ); }
+    static inline std::string to_string( unsigned long long value ) { return wibble::str::fmt( value ); }
+    static inline std::string to_string( float value ) { return wibble::str::fmt( value ); }
+    static inline std::string to_string( double value ) { return wibble::str::fmt( value ); }
+    static inline std::string to_string( long double value ) { return wibble::str::fmt( value ); }
+
+    static inline int       stoi( const std::string& str, size_t *pos = 0, int base = 10 ) {
+        char *end;
+        long ret = std::strtol( str.c_str(), &end, base );
+        if ( end == str.c_str() )
+            throw  std::invalid_argument( "stoi" );
+        if ( errno == ERANGE || long( int( ret ) ) != ret  )
+            throw std::out_of_range( "stoi" );
+        if ( pos )
+            *pos = end - str.c_str();
+        return ret;
+    }/*
+    static inline long      stol( const std::string& str, size_t *pos = 0, int base = 10 );
+    static inline long long stoll( const std::string& str, size_t *pos = 0, int base = 10 );
+    */
+}
+#endif // _WIN32 std::to_string hack
 
 // vim:set ts=4 sw=4:
 #endif

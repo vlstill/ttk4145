@@ -139,6 +139,18 @@ struct TestString {
         assert_eq(str::joinpath("a/", "/b"), "a/b");
     }
 
+    Test appendpath()
+    {
+        assert_eq(str::appendpath("a", "b"), "a/b");
+        assert_eq(str::appendpath("a/", "b"), "a/b");
+        assert_eq(str::appendpath("a", "/b"), "/b");
+        assert_eq(str::appendpath("a/", "/b"), "/b");
+        assert_eq(str::appendpath("/a", "b"), "/a/b");
+        assert_eq(str::appendpath("/a/", "b"), "/a/b");
+        assert_eq(str::appendpath("/a", "/b"), "/b");
+        assert_eq(str::appendpath("/a/", "/b"), "/b");
+    }
+
     Test urlencode()
     {
         assert_eq(str::urlencode(""), "");
@@ -363,6 +375,13 @@ struct TestString {
 		i = yamlStream.begin(input);
 		assert(i == yamlStream.end());
 	}
+
+    Test c_escape_unescape() {
+        size_t len;
+        assert_eq(str::c_unescape("cia\\x00o", len), string("cia\0o", 5));
+        assert_eq(len, 8);
+        assert_eq(str::c_escape(string("cia\0o", 5)), "cia\\x00o");
+    }
 };
 
 }
