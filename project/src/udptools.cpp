@@ -65,6 +65,25 @@ void Socket::setRecvBufferSize( int size ) {
     _data->rcvbuf.reset( new char[ size ] );
 }
 
+struct GuardTimout {
+    GuardTimout( int fd, long msTimeout ) : fd( fd ) {
+        struct timeval tv;
+        tv.tv_sec = msTimeout / 1000;
+        tv.tv_usec = (msTimeout % 1000) * 1000;
+
+        setsockopt( fd, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast< char * >( &tv ), sizeof( struct timeval ) );
+    }
+    ~GuardTimout() {
+        struct timeval tv;
+        tv.tv_sec = tv.tv_usec = 0;
+
+        setsockopt( fd, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast< char * >( &tv ), sizeof( struct timeval ) );
+    }
+
+  private:
+    int fd;
+};
+
 
 bool Socket::sendPacket( Packet &packet ) {
     sockaddr_in remote = getNetAddress( packet.address() );
@@ -83,6 +102,12 @@ Packet Socket::recvPacket() {
     return rc > 0
         ? Packet( _data->rcvbuf.get(), rc, fromNetAddress( remote ) )
         : Packet();
+}
+
+Packet Socket::recvPacketWithTimeout( long ms ) {
+    GuardTimout timeout{ _data->fd, ms }; /* sets timeout and resets it when
+                                             of exit of this scope (on return) */
+    return recvPacket();
 }
 
 Address Socket::localAddress() const { return _data->localAddress; }

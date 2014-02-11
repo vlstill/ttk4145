@@ -173,6 +173,10 @@ struct Socket {
 
     bool sendPacket( Packet & );
     Packet recvPacket();
+    /** receive packet or timeout after given number of milliseconds
+     * and return Nothing
+     */
+    Packet recvPacketWithTimeout( long ms );
 
     Address localAddress() const;
 

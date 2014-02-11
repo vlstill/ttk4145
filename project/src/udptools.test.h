@@ -6,6 +6,10 @@
 #include <cstring>
 #include <unistd.h>
 
+#include <signal.h>
+
+static bool alarmed = false;
+
 struct TestUdp {
     Test basic() {
         udp::Socket sock{};
@@ -22,6 +26,39 @@ struct TestUdp {
         udp::Socket sock{};
         bool sent = sock.sendPacket(packet);
         assert( sent );
+    }
+
+    Test timeout() {
+        udp::Socket sock{ udp::Address{ udp::IPv4Address::localhost, udp::Port{ 64123 } } };
+        udp::Packet empty = sock.recvPacketWithTimeout( 300 );
+        assert( empty.size() == 0 );
+    }
+
+    Test timeoutReset() {
+        udp::Socket sock{ udp::Address{ udp::IPv4Address::localhost, udp::Port{ 64123 } } };
+        udp::Packet empty = sock.recvPacketWithTimeout( 300 );
+
+        // setup SIGALRM handler
+        struct sigaction alarmAct;
+        memset( &alarmAct, 0, sizeof( struct sigaction ) );
+        alarmed = false;
+        alarmAct.sa_handler = []( int sig ) {
+            assert_eq( sig, SIGALRM );
+            alarmed = true;
+        };
+
+        int rc = sigaction( SIGALRM, &alarmAct, nullptr );
+        assert_eq( rc, 0 );
+
+        // and setup alarm for 1 second
+        alarm( 1 );
+
+        assert( empty.size() == 0 );
+        // now test that timeout was actually reset
+        sock.recvPacket(); // this shoud block until iterrupted by alarm
+        // make sure we were interrupted by alarm (after 1s) and not timeout
+        // after 300 ms
+        assert( alarmed && "recvPacket should block" );
     }
 
     Test sendRcv() {
