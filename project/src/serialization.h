@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <memory>
 #include <utility>
+#include <wibble/maybe.h>
 
 #include "test.h"
 #include "udptools.h"
@@ -99,10 +100,18 @@ struct Serializer {
     }
 
     template< typename What >
-    static What deserialize( Serialized &s ) {
-        assert_eq( What::type(), s.type(), "Wrong type for deserialization" );
+    static wibble::Maybe< What > deserialize( Serialized &s ) {
+        if ( What::type() != s.type() )
+            return wibble::Maybe< What >::Nothing();
         auto tuple = deserializeAs< typename What::Tuple >( s.slice() );
-        return What( tuple );
+        return wibble::Maybe< What >::Just( What( tuple ) );
+    }
+
+    template< typename What >
+    static What unsafeDeserialize( Serialized &s ) {
+        auto result = deserialize< What >( s );
+        assert( !result.isNothing(), "Wrong type for deserialization" );
+        return result.value();
     }
 
     template< typename Tuple >
@@ -127,10 +136,17 @@ struct Serializer {
     }
 
     template< typename What >
-    static What fromPacket( const udp::Packet &packet ) {
+    static wibble::Maybe< What > fromPacket( const udp::Packet &packet ) {
         Serialized serial{ packet.get< TypeSignature >(), packet.cdata() + packet_data_offset,
             packet.get< int >( sizeof( TypeSignature ) ) };
         return deserialize< What >( serial );
+    }
+
+    template< typename What >
+    static What unsafeFromPacket( const udp::Packet &packet ) {
+        auto result = fromPacket< What >( packet );
+        assert( !result.isNothing(), "Wrong type for deserialization" );
+        return result.value();
     }
 
   private:

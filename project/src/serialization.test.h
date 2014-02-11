@@ -57,7 +57,7 @@ struct TestSerialization {
     Test typed() {
         _TestData data{ 0x7700ff770077ff00, 0x0077ff770077ff00, true };
         Serialized serial = Serializer::serialize( data );
-        _TestData deser = Serializer::deserialize< _TestData >( serial );
+        _TestData deser = Serializer::unsafeDeserialize< _TestData >( serial );
         assert_eq( data.x, deser.x, "serialization-deserialization error" );
         assert_eq( data.y, deser.y, "serialization-deserialization error" );
         assert_eq( data.p, deser.p, "serialization-deserialization error" );
@@ -66,7 +66,7 @@ struct TestSerialization {
     Test packet() {
         _TestData data{ 0x7700ff770077ff00, 0x0077ff770077ff00, true };
         udp::Packet packet = Serializer::toPacket( data );
-        _TestData deser = Serializer::fromPacket< _TestData >( packet );
+        _TestData deser = Serializer::unsafeFromPacket< _TestData >( packet );
         assert_eq( data.x, deser.x, "serialization-deserialization error" );
         assert_eq( data.y, deser.y, "serialization-deserialization error" );
         assert_eq( data.p, deser.p, "serialization-deserialization error" );
