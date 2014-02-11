@@ -23,7 +23,7 @@ struct TestConcurrentQueue {
             q.enqueue( i );
         for ( int i = 0; i < 100; ++i ) {
             auto x = q.tryDequeue();
-            assert( !x.nothing() );
+            assert( !x.isNothing() );
             assert_eq( x.value(), i );
         }
         assert( q.empty() );
@@ -57,7 +57,7 @@ struct TestConcurrentQueue {
         void operator()() {
             for ( auto &x : last )
                 x = -1;
-            for ( int i = 0; end < last.size(); ++i ) {
+            for ( int i = 0; end < int( last.size() ); ++i ) {
                 auto x = queue.dequeue();
                 assert_leq( -1, x.first );
                 assert_leq( x.first, int( last.size() ) );
