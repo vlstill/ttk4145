@@ -120,7 +120,7 @@ struct Packet {
         assert_leq( 1, size, "invalid size" );
     }
     explicit Packet( const char *data, int size, Address addr = Address() ) :
-        _data( new char[ size ] ), _size( size ), _address( addr )
+        _address( addr ), _data( new char[ size ] ), _size( size )
     {
         assert_leq( 1, size, "invalid size" );
         assert( data != nullptr, "data must be given" );
@@ -130,6 +130,15 @@ struct Packet {
     char *data() { return _data.get(); }
     const char *data() const { return cdata(); }
     const char *cdata() const { return _data.get(); }
+
+    template< typename T = char >
+    T &get( int position = 0 ) { return *reinterpret_cast< T * >( data() + position ); }
+
+    template< typename T = char >
+    T get( int position = 0 ) const { return cget< T >( position ); }
+
+    template< typename T = char >
+    T cget( int position = 0 ) const { return *reinterpret_cast< const T * >( cdata() + position ); }
 
     Address address() const { return _address; }
     Address &address() { return _address; }
