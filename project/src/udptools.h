@@ -165,7 +165,7 @@ enum { standardMTU = 1500 };
  * menaning all local addresses and arbitrary port
  */
 struct Socket {
-    explicit Socket( Address local = Address(), int rcvbuf = standardMTU );
+    explicit Socket( Address local = Address(), bool reuseAddr = false, int rcvbuf = standardMTU );
     ~Socket();
 
     void setRecvBufferSize( int size );

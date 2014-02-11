@@ -11,6 +11,10 @@ struct TestUdp {
         udp::Socket sock{};
     }
 
+    Test reuse() {
+        udp::Socket sock{ udp::Address{}, true }; // enable socket reuse
+    }
+
     Test send() {
         udp::Address target{ udp::IPv4Address::localhost, udp::Port{ 64123 } };
         udp::Packet packet{ "Test", 5 };
@@ -40,7 +44,7 @@ struct TestUdp {
             } );
 
 
-        alarm( 4 ); // get killed after 4 seconds
+        alarm( 4 ); // get killed after 4 seconds -- just in case we deadlock (SIG 14)
 
         udp::Socket recv{ target };
         udp::Packet pck = recv.recvPacket();

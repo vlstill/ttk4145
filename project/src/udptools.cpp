@@ -31,12 +31,17 @@ Address fromNetAddress( sockaddr_in netAddr ) {
 }
 
 struct Socket::_Data {
-    _Data( Address local, int rcvbufsize ) :
+    _Data( Address local, bool reuseAddr, int rcvbufsize ) :
         localAddress( local ), rcvbufsize( rcvbufsize ), rcvbuf( new char[ rcvbufsize ] )
     {
         fd = socket(AF_INET, SOCK_DGRAM, 0);
         assert( fd > 0, "Cannot create socket" );
         sockaddr_in locAddrNet = getNetAddress( localAddress );
+        if ( reuseAddr ) {
+            int yes = 1;
+            int rc = setsockopt( fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof( int ) );
+            assert_neq( rc, -1, "setting socket reuse address option failed" );
+        }
         int bnd = bind( fd, reinterpret_cast< sockaddr * >( &locAddrNet ), sizeof( sockaddr_in ) );
         assert( bnd==0, "Bind failed" );
     }
@@ -49,7 +54,7 @@ struct Socket::_Data {
 };
 
 
-Socket::Socket( Address local, int rcvbuf ) : _data( new _Data( local, rcvbuf ) ) { }
+Socket::Socket( Address local, bool reuseAddr, int rcvbuf ) : _data( new _Data( local, reuseAddr, rcvbuf ) ) { }
 
 // must be here -- where _Data definition is known
 Socket::~Socket() = default;
