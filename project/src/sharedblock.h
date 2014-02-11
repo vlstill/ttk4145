@@ -30,8 +30,8 @@ struct SharedBlock {
     template< typename Function >
     auto atomically( Function function ) -> typename
         std::enable_if<
-            !std::is_void< typename std::result_of< Function( T ) >::type >::value,
-            typename std::result_of< Function( T ) >::type >::type
+            !std::is_void< typename std::result_of< Function( T & ) >::type >::value,
+            typename std::result_of< Function( T & ) >::type >::type
     { // non-void version
         Guard g{ _lock };
         return function( _data );
@@ -39,7 +39,7 @@ struct SharedBlock {
 
     template< typename Function >
     auto atomically( Function function ) -> typename
-        std::enable_if< std::is_void< typename std::result_of< Function( T ) >::type >::value >::type
+        std::enable_if< std::is_void< typename std::result_of< Function( T & ) >::type >::value >::type
     { // void version
         Guard g{ _lock };
         function( _data );
