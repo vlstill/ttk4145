@@ -36,28 +36,37 @@ struct TestSerialization {
         assert_eq( std::get< 4 >( origdata ), std::get< 4 >( deserialized ), "serialization-deserialization error" );
     }
 
+    struct _TestData {
+        using Tuple = std::tuple< long, long, bool >;
+        static TypeSignature type() { return TypeSignature::TestType; }
+        static int size() { return sizeof( Tuple ); }
+        Tuple tuple() const { return std::make_tuple( x, y, p ); }
+
+        explicit _TestData( const Tuple &data ) :
+            x( std::get< 0 >( data ) ), y( std::get< 1 >( data ) ),
+            p( std::get< 2 >( data ) )
+        { }
+
+        _TestData( long x, long y, bool p ) : x( x ), y( y ), p( p ) { }
+        _TestData() = default;
+
+        long x, y;
+        bool p;
+    };
+
     Test typed() {
-        struct TestData {
-            using Tuple = std::tuple< long, long, bool >;
-            static TypeSignature type() { return TypeSignature::TestType; }
-            static int size() { return sizeof( Tuple ); }
-            Tuple tuple() const { return std::make_tuple( x, y, p ); }
-
-            explicit TestData( const Tuple &data ) :
-                x( std::get< 0 >( data ) ), y( std::get< 1 >( data ) ),
-                p( std::get< 2 >( data ) )
-            { }
-
-            TestData( long x, long y, bool p ) : x( x ), y( y ), p( p ) { }
-            TestData() = default;
-
-            long x, y;
-            bool p;
-        };
-
-        TestData data{ 0x7700ff770077ff00, 0x0077ff770077ff00, true };
+        _TestData data{ 0x7700ff770077ff00, 0x0077ff770077ff00, true };
         Serialized serial = Serializer::serialize( data );
-        TestData deser = Serializer::deserialize< TestData >( serial );
+        _TestData deser = Serializer::deserialize< _TestData >( serial );
+        assert_eq( data.x, deser.x, "serialization-deserialization error" );
+        assert_eq( data.y, deser.y, "serialization-deserialization error" );
+        assert_eq( data.p, deser.p, "serialization-deserialization error" );
+    }
+
+    Test packet() {
+        _TestData data{ 0x7700ff770077ff00, 0x0077ff770077ff00, true };
+        udp::Packet packet = Serializer::toPacket( data );
+        _TestData deser = Serializer::fromPacket< _TestData >( packet );
         assert_eq( data.x, deser.x, "serialization-deserialization error" );
         assert_eq( data.y, deser.y, "serialization-deserialization error" );
         assert_eq( data.p, deser.p, "serialization-deserialization error" );

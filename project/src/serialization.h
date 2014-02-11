@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "test.h"
+#include "udptools.h"
 
 #ifndef SRC_SERIALIZATION_H
 #define SRC_SERIALIZATION_H
@@ -37,7 +38,7 @@ struct Serialized {
         _data( new char[ size ] ), _datasize( size ), _datatype( type )
     { }
 
-    Serialized( TypeSignature type, char *data, int size ) :
+    Serialized( TypeSignature type, const char *data, int size ) :
         Serialized( type, size )
     {
         std::copy( data, data + size, _data.get() );
@@ -88,24 +89,6 @@ struct Serialized {
     TypeSignature _datatype;
 };
 
-template< typename T >
-struct BinarySerializer {
-    static_assert( std::is_integral< T >::value,
-        "Automatic serialization works only for integers, please implement specific serialization support" );
-
-    static int size( const T & ) { return sizeOf< T >(); }
-
-    static std::tuple< Serialized::Slice, T, bool > get( Serialized::Slice data ) {
-        // we just interpret the memory as number and advance the data pointer
-        return data.get< T >();
-    }
-
-    static std::tuple< Serialized::Slice, bool > write( Serialized::Slice data, T value ) {
-        // write number to memory and avance the data pointer
-        return data.set( value );
-    }
-};
-
 struct Serializer {
     template< typename What >
     static Serialized serialize( const What &w ) {
@@ -132,9 +115,32 @@ struct Serializer {
         serializeAs< 0 >( slice, tuple );
     }
 
+    template< typename What >
+    static udp::Packet toPacket( const What &w ) {
+        Serialized serial = serialize( w );
+        udp::Packet packet{ packetSize( serial ) };
+        packet.get< TypeSignature >() = serial.type();
+        packet.get< int >( sizeof( TypeSignature ) ) = serial.size();
+        std::copy( serial.rawData(), serial.rawData() + serial.size(),
+                packet.data() + packet_data_offset );
+        return packet;
+    }
+
+    template< typename What >
+    static What fromPacket( const udp::Packet &packet ) {
+        Serialized serial{ packet.get< TypeSignature >(), packet.cdata() + packet_data_offset,
+            packet.get< int >( sizeof( TypeSignature ) ) };
+        return deserialize< What >( serial );
+    }
+
   private:
+    static constexpr int packet_data_offset = sizeof( TypeSignature ) + sizeof( int );
+    static int packetSize( const Serialized& serial ) {
+        return packet_data_offset + serial.size();
+    }
+
     template< typename Tuple, int I, typename... Ts >
-    static auto deserializeAs( Serialized::Slice slice, Ts &&...data ) ->
+    static auto deserializeAs( Serialized::Slice, Ts &&...data ) ->
         typename std::enable_if< I == std::tuple_size< Tuple >::value, Tuple >::type
     {
         return std::make_tuple( std::forward< Ts >( data )... );
