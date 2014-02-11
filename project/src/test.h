@@ -23,7 +23,7 @@ using Test = void;
 #define assert_eq( X, Y, MSG ) test::assert_eq_fn( X, Y, #X " == " #Y " (" MSG ")", CODE_LOCATION )
 #define assert_neq( X, Y, MSG ) test::assert_neq_fn( X, Y, #X " != " #Y " (" MSG ")", CODE_LOCATION )
 #define assert_leq( X, Y, MSG ) test::assert_leq_fn( X, Y, #X " <= " #Y " (" MSG ")", CODE_LOCATION )
-#define assert_le( X, Y, MSG ) test::assert_le_fn( X, Y, #X " < " #Y " (" MSG ")", CODE_LOCATION )
+#define assert_lt( X, Y, MSG ) test::assert_lt_fn( X, Y, #X " < " #Y " (" MSG ")", CODE_LOCATION )
 #define assert_unimplemented()  test::assert_unimplemented_fn( CODE_LOCATION )
 #define assert_unreachable( MSG )    test::assert_unreachable_fn( "unreachable: " MSG, CODE_LOCATION )
 
@@ -121,7 +121,7 @@ static inline void assert_leq_fn( const X &x, const Y &y, const char *what, Loca
 }
 
 template< typename X, typename Y >
-static inline void assert_le_fn( const X &x, const Y &y, const char *what, Location loc ) {
+static inline void assert_lt_fn( const X &x, const Y &y, const char *what, Location loc ) {
     if ( !( x < y ) )
         throw GenerallAssertionFailed( what, loc );
 }
