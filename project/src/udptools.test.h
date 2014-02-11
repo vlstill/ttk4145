@@ -1,7 +1,6 @@
 // C++11 (c) 2014 Vladimír Štill
 
 #include "udptools.h"
-#include <wibble/test.h>
 #include <thread>
 #include <cstring>
 #include <unistd.h>
@@ -25,13 +24,13 @@ struct TestUdp {
         packet.address() = target;
         udp::Socket sock{};
         bool sent = sock.sendPacket(packet);
-        assert( sent );
+        assert( sent, "Sending failed" );
     }
 
     Test timeout() {
         udp::Socket sock{ udp::Address{ udp::IPv4Address::localhost, udp::Port{ 64123 } } };
         udp::Packet empty = sock.recvPacketWithTimeout( 300 );
-        assert( empty.size() == 0 );
+        assert_eq( empty.size(), 0, "Packet should not be received" );
     }
 
     Test timeoutReset() {
@@ -43,22 +42,22 @@ struct TestUdp {
         memset( &alarmAct, 0, sizeof( struct sigaction ) );
         alarmed = false;
         alarmAct.sa_handler = []( int sig ) {
-            assert_eq( sig, SIGALRM );
+            assert_eq( sig, SIGALRM, "invalid signal" );
             alarmed = true;
         };
 
         int rc = sigaction( SIGALRM, &alarmAct, nullptr );
-        assert_eq( rc, 0 );
+        assert_eq( rc, 0, "sigaction failed" );
 
         // and setup alarm for 1 second
         alarm( 1 );
 
-        assert( empty.size() == 0 );
+        assert_eq( empty.size(), 0, "packet should be empty" );
         // now test that timeout was actually reset
         sock.recvPacket(); // this shoud block until iterrupted by alarm
         // make sure we were interrupted by alarm (after 1s) and not timeout
         // after 300 ms
-        assert( alarmed && "recvPacket should block" );
+        assert( alarmed, "recvPacket should block" );
     }
 
     Test sendRcv() {
@@ -85,15 +84,15 @@ struct TestUdp {
 
         udp::Socket recv{ target };
         udp::Packet pck = recv.recvPacket();
-        assert( pck.size() );
-        assert_eq( std::strcmp( pck.data(), "Test" ), 0 );
-        assert_eq( pck.address(), sndAddr );
+        assert( pck.size(), "packet should not be empty" );
+        assert_eq( std::strcmp( pck.data(), "Test" ), 0, "wrong data" );
+        assert_eq( pck.address(), sndAddr, "wrong address" );
 
         pck = recv.recvPacket();
-        assert_eq( pck.size(), int( sizeof( int ) + sizeof( long ) ) );
-        assert_eq( pck.get< long >(), 0x7700ff770077ff00L );
-        assert_eq( pck.get< int >( sizeof( long ) ), 42 );
-        assert_eq( pck.address(), sndAddr );
+        assert_eq( pck.size(), int( sizeof( int ) + sizeof( long ) ), "wrong size" );
+        assert_eq( pck.get< long >(), 0x7700ff770077ff00L, "wrong data" );
+        assert_eq( pck.get< int >( sizeof( long ) ), 42, "wrong data" );
+        assert_eq( pck.address(), sndAddr, "wrong data" );
 
         sender.join();
     }

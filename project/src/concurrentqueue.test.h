@@ -1,11 +1,11 @@
 // C++11    (c) 2014 Vladimír Štill <xstill@fi.muni.cz>
 
-#include "concurrentqueue.h"
-#include <wibble/test.h>
-
 #include <thread>
 #include <vector>
 #include <atomic>
+
+#include "concurrentqueue.h"
+#include "test.h"
 
 struct TestConcurrentQueue {
     Test sequential() {
@@ -13,8 +13,8 @@ struct TestConcurrentQueue {
         for ( int i = 0; i < 100; ++i )
             q.enqueue( i );
         for ( int i = 0; i < 100; ++i )
-            assert_eq( q.dequeue(), i );
-        assert( q.empty() );
+            assert_eq( q.dequeue(), i, "invalid data" );
+        assert( q.empty(), "should be empty" );
     }
 
     Test tryDequeue() {
@@ -23,10 +23,10 @@ struct TestConcurrentQueue {
             q.enqueue( i );
         for ( int i = 0; i < 100; ++i ) {
             auto x = q.tryDequeue();
-            assert( !x.isNothing() );
-            assert_eq( x.value(), i );
+            assert( !x.isNothing(), "should not be empty" );
+            assert_eq( x.value(), i, "invalid data" );
         }
-        assert( q.empty() );
+        assert( q.empty(), "should be empty" );
     }
 
     struct Writer {
@@ -59,14 +59,14 @@ struct TestConcurrentQueue {
                 x = -1;
             for ( int i = 0; end < int( last.size() ); ++i ) {
                 auto x = queue.dequeue();
-                assert_leq( -1, x.first );
-                assert_leq( x.first, int( last.size() ) );
-                assert_leq( -1, x.second );
+                assert_leq( -1, x.first, "" );
+                assert_leq( x.first, int( last.size() ), "" );
+                assert_leq( -1, x.second, "" );
                 if ( x.second == -1 ) {
                     ++end;
                     continue;
                 }
-                assert_leq( last[ x.first ] + 1, x.second );
+                assert_leq( last[ x.first ] + 1, x.second, "" );
             }
             queue.enqueue( std::make_pair( -1, -1 ) ); // just to prevent stuck other readers
         }
