@@ -1,6 +1,6 @@
 // C++11    (c) 2014 Vladimír Štill <xstill@fi.muni.cz>
 
-/** the higher level API for libcomedy device of elevator */
+/** the middle level API for elevator */
 
 #include "io.h"
 
@@ -27,19 +27,48 @@ struct Button {
     int _floor;
 };
 
+enum class Direction { Up, Down };
+
 struct Driver {
 
     Driver();
+    ~Driver();
+
+    /* initialize the elevator -- disable all lights and run to lowest floor */
+    void init();
+    void shutdown();
 
     void setButtonLamp( Button button, bool state );
     void setStopLamp( bool state );
     void setDoorOpenLamp( bool state );
     void setFloorIndicator( int floor );
 
+    bool getButtonLamp( Button button );
+    bool getStopLamp();
+    bool getDoorOpenLamp();
+    int getFloorIndicator();
+
+    void stopElevator();
+    int getFloor();
+    bool getStop();
+    bool getObstruction();
+
+    void goToFloor( int );
+    void goUpToFloor( int );
+    void goDownToFloor( int );
+    void goToBottom();
+    void goToTop();
 
   private:
+    void _setMotorSpeed( Direction, int );
+    void _movingOnFloor( int );
+    void _goTo( Direction, int );
+
     int _minFloor;
     int _maxFloor;
+    Direction _lastDirection;
+    int _lastFloor;
+    bool _moving;
     lowlevel::IO _lio;
 };
 
