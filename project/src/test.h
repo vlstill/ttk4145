@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
+#include <type_traits>
 
 #ifndef SRC_TEST_H
 #define SRC_TEST_H
@@ -54,7 +55,7 @@ struct Location {
 
 struct AssertionFailed : std::exception {
 
-    AssertionFailed( const char *what, Location loc, AssertionTag tag ) :
+    AssertionFailed( std::string what, Location loc, AssertionTag tag ) :
         _what( what ), _where( loc ), _tag( tag )
     { }
 
@@ -67,6 +68,7 @@ struct AssertionFailed : std::exception {
     const char *what() const noexcept override {
         auto str = message();
         char *msg = new char[ str.size() + 1 ];
+        msg[ str.size() ] = 0;
         std::copy( str.begin(), str.end(), msg );
         return msg;
     }
@@ -74,28 +76,31 @@ struct AssertionFailed : std::exception {
     AssertionTag tag() const { return _tag; }
 
   private:
-    const char *_what;
+    std::string _what;
     const Location _where;
     AssertionTag _tag;
 };
 
 struct GenerallAssertionFailed : AssertionFailed {
-    GenerallAssertionFailed( const char *what, Location loc ) :
+    GenerallAssertionFailed( std::string what, Location loc ) :
         AssertionFailed( what, loc, AssertionTag::Generall )
     { }
 };
 
 struct UnimplementedAssertionFailed : AssertionFailed {
-    UnimplementedAssertionFailed( const char *what, Location loc ) :
+    UnimplementedAssertionFailed( std::string what, Location loc ) :
         AssertionFailed( what, loc, AssertionTag::Unimplemented )
     { }
 };
 
 struct UnreachableAssertionFailed : AssertionFailed {
-    UnreachableAssertionFailed( const char *what, Location loc ) :
+    UnreachableAssertionFailed( std::string what, Location loc ) :
         AssertionFailed( what, loc, AssertionTag::Unreachable )
     { }
 };
+
+template< typename X, typename Y >
+static inline std::string format( const char *what, const X &x, const Y &y, const char *op );
 
 static inline void assert_fn( bool x, const char *what, Location loc ) {
     if ( !x )
@@ -105,25 +110,25 @@ static inline void assert_fn( bool x, const char *what, Location loc ) {
 template< typename X, typename Y >
 static inline void assert_eq_fn( const X &x, const Y &y, const char *what, Location loc ) {
     if ( !( x == y ) )
-        throw GenerallAssertionFailed( what, loc );
+        throw GenerallAssertionFailed( format( what, x, y, "!=" ), loc );
 }
 
 template< typename X, typename Y >
 static inline void assert_neq_fn( const X &x, const Y &y, const char *what, Location loc ) {
     if ( !( x != y ) )
-        throw GenerallAssertionFailed( what, loc );
+        throw GenerallAssertionFailed( format( what, x, y, "==" ), loc );
 }
 
 template< typename X, typename Y >
 static inline void assert_leq_fn( const X &x, const Y &y, const char *what, Location loc ) {
     if ( !( x <= y ) )
-        throw GenerallAssertionFailed( what, loc );
+        throw GenerallAssertionFailed( format( what, x, y, ">" ), loc );
 }
 
 template< typename X, typename Y >
 static inline void assert_lt_fn( const X &x, const Y &y, const char *what, Location loc ) {
     if ( !( x < y ) )
-        throw GenerallAssertionFailed( what, loc );
+        throw GenerallAssertionFailed( format( what, x, y, ">=" ), loc );
 }
 
 [[noreturn]] static inline void assert_unimplemented_fn( Location loc ) {
@@ -133,6 +138,40 @@ static inline void assert_lt_fn( const X &x, const Y &y, const char *what, Locat
 [[noreturn]] static inline void assert_unreachable_fn( const char *what, Location loc ) {
     throw UnreachableAssertionFailed( what, loc );
 }
+
+/* the problem with "smart" assertions which print values on error is that they
+ * are sometimes used on types which are not printable, in such a case we would
+ * get compilation error normally, to avoid this, following lines
+ * wrap the printing of values in way that is not really nice, but works:
+ * if compiler cannot resolve operator << for value type, the decltype
+ * will disable first overload, falling back to just printing the assertion
+ * message without values.
+ */
+struct __Preferred { };
+struct __NotPreferred { __NotPreferred( __Preferred ) { } };
+
+template< typename... X >
+std::string __declcheck( X ... ) { assert_unreachable( "compile-tine only" ); }
+
+template< typename X, typename Y >
+static inline auto __format( __Preferred, const char *what, const X &x, const Y &y, const char *op )
+    -> decltype( __declcheck( (std::declval< std::stringstream >() << x << y).tellp() ) )
+{
+    std::stringstream ss;
+    ss << what << ", but [" << x << "] " << op << " [" << y << "]";
+    return ss.str();
+}
+
+template< typename X, typename Y >
+static inline std::string __format( __NotPreferred, const char *what, const X &, const Y &, const char * ) {
+    return what;
+}
+
+template< typename X, typename Y >
+static inline std::string format( const char *what, const X &x, const Y &y, const char *op ) {
+    return __format( __Preferred(), what, x, y, op );
+}
+
 
 }
 
