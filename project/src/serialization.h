@@ -11,6 +11,7 @@
 
 #include "test.h"
 #include "udptools.h"
+#include "internal/serialization.h"
 
 #ifndef SRC_SERIALIZATION_H
 #define SRC_SERIALIZATION_H
@@ -30,16 +31,22 @@ constexpr size_t sizeOf() {
     return std::is_empty< T >::value ? 0 : sizeof( T );
 }
 
+template< typename T >
+struct Serializable :
+    _internal::Serializable< T, _internal::trait< T >() >
+{ };
+
 struct Serialized {
-    int size() const { return _datasize; }
+    long size() const { return _datasize; }
     TypeSignature type() const { return _datatype; }
     const char *rawData() const { return _data.get(); }
+    char *rawDataRW() { return _data.get(); }
 
-    Serialized( TypeSignature type, int size ) :
+    Serialized( TypeSignature type, long size ) :
         _data( new char[ size ] ), _datasize( size ), _datatype( type )
     { }
 
-    Serialized( TypeSignature type, const char *data, int size ) :
+    Serialized( TypeSignature type, const char *data, long size ) :
         Serialized( type, size )
     {
         std::copy( data, data + size, _data.get() );
@@ -49,53 +56,19 @@ struct Serialized {
         _data( nullptr ), _datasize( 0 ), _datatype( TypeSignature::NoType )
     { }
 
-    struct Slice {
-
-        Slice() = default;
-        Slice( char *data, int size ) : _data( data ), _datasize( size ) { }
-
-        template< typename T >
-        std::tuple< Slice, T, bool > get( const int size = sizeOf< T >() ) {
-            if ( size > _datasize )
-                return std::make_tuple( Slice(), T(), false );
-            T &t = *reinterpret_cast< T * >( _data );
-            return std::make_tuple( advance( size ), t, true );
-        }
-
-        template< typename T >
-        std::tuple< Slice, bool > set( const T &value, const int size = sizeOf< T >() ) {
-            if ( size > _datasize )
-                return std::make_tuple( Slice(), false );
-            *reinterpret_cast< T * >( _data ) = value;
-            return std::make_tuple( advance( size ), true );
-        }
-
-        Slice advance( const int size ) {
-            auto copy = *this;
-            copy._data += size;
-            copy._datasize -= size;
-            return copy;
-        }
-
-      private:
-        char *_data;
-        int _datasize;
-    };
-
-    Slice slice() { return Slice( _data.get(), _datasize ); }
-
   private:
     std::unique_ptr< char > _data;
-    int _datasize;
+    long _datasize;
     TypeSignature _datatype;
 };
 
 struct Serializer {
     template< typename What >
     static Serialized serialize( const What &w ) {
-        auto tuple = w.tuple();
-        Serialized serial{ w.type(), w.size() };
-        serializeAs( serial.slice(), tuple );
+        Serialized serial{ w.type(), Serializable< What >::size( w ) };
+        char *ptr = serial.rawDataRW();
+        Serializable< What >::serialize( w, &ptr );
+        assert_eq( ptr, serial.rawData() + Serializable< What >::size( w ), "wrong size" );
         return serial;
     }
 
@@ -103,8 +76,10 @@ struct Serializer {
     static wibble::Maybe< What > deserialize( Serialized &s ) {
         if ( What::type() != s.type() )
             return wibble::Maybe< What >::Nothing();
-        auto tuple = deserializeAs< typename What::Tuple >( s.slice() );
-        return wibble::Maybe< What >::Just( What( tuple ) );
+        const char *ptr = s.rawData();
+        auto data = Serializable< What >::deserialize( &ptr );
+        assert_eq( s.size(), Serializable< What >::size( data ), "wrong size" );
+        return wibble::Maybe< What >::Just( data );
     }
 
     template< typename What >
@@ -112,16 +87,6 @@ struct Serializer {
         auto result = deserialize< What >( s );
         assert( !result.isNothing(), "Wrong type for deserialization" );
         return result.value();
-    }
-
-    template< typename Tuple >
-    static Tuple deserializeAs( Serialized::Slice slice ) {
-        return deserializeAs< Tuple, 0 >( slice );
-    }
-
-    template< typename Tuple >
-    static void serializeAs( Serialized::Slice slice, const Tuple &tuple ) {
-        serializeAs< 0 >( slice, tuple );
     }
 
     template< typename What >
@@ -153,42 +118,6 @@ struct Serializer {
     static constexpr int packet_data_offset = sizeof( TypeSignature ) + sizeof( int );
     static int packetSize( const Serialized& serial ) {
         return packet_data_offset + serial.size();
-    }
-
-    template< typename Tuple, int I, typename... Ts >
-    static auto deserializeAs( Serialized::Slice, Ts &&...data ) ->
-        typename std::enable_if< I == std::tuple_size< Tuple >::value, Tuple >::type
-    {
-        return std::make_tuple( std::forward< Ts >( data )... );
-    }
-
-    template< typename Tuple, int I, typename... Ts >
-    static auto deserializeAs( Serialized::Slice slice, Ts &&...data ) ->
-        typename std::enable_if< ( I < std::tuple_size< Tuple >::value ), Tuple >::type
-    {
-        using TypeToGet = typename std::tuple_element< I, Tuple >::type;
-        TypeToGet value;
-        Serialized::Slice cont;
-        bool ok;
-        std::tie( cont, value, ok ) = slice.get< TypeToGet >();
-        assert( ok, "deserialization failure" );
-        return deserializeAs< Tuple, I + 1 >( cont, std::forward< Ts >( data )..., value );
-    }
-
-    template< int I, typename Tuple >
-    static auto serializeAs( Serialized::Slice, const Tuple & ) ->
-        typename std::enable_if< I == std::tuple_size< Tuple >::value >::type
-    { }
-
-    template< int I, typename Tuple >
-    static auto serializeAs( Serialized::Slice slice, const Tuple &tuple ) ->
-        typename std::enable_if< ( I < std::tuple_size< Tuple >::value ) >::type
-    {
-        Serialized::Slice cont;
-        bool ok;
-        std::tie( cont, ok ) = slice.set( std::get< I >( tuple ) );
-        assert( ok, "serialization failure" );
-        serializeAs< I + 1 >( cont, tuple );
     }
 };
 

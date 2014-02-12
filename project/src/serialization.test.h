@@ -4,37 +4,95 @@
 
 using namespace serialization;
 
-struct TestSerialization {
+struct TestSerializationInternal {
     Test deserializeInt() {
-        std::tuple< int > testdata{ 42 };
-
-        serialization::Serialized::Slice slice{ reinterpret_cast< char * >( &testdata ), sizeof( int ) };
-
-        int got = 0;
-        std::tie( got ) = serialization::Serializer::deserializeAs< std::tuple< int > >( slice );
+        int testdata{ 42 };
+        const char *ptr = reinterpret_cast< const char * >( &testdata );
+        int got = Serializable< int >::deserialize( &ptr );
         assert_eq( got, 42, "Incorrect deserialization" );
     }
 
-    Test serializeInt() {
-        std::tuple< int > testdata{ 42 };
-        Serialized serial{ TypeSignature::NoType, sizeof( int ) };
-        Serializer::serializeAs( serial.slice(), testdata );
-        assert_eq( *reinterpret_cast< const int * >( serial.rawData() ), 42, "Incorrect serialization" );
+    Test fundamental() {
+        assert_eq( Serializable< int >::size( 0 ), long( sizeof( int ) ), "size" );
+        assert_eq( Serializable< double >::size( 0 ), long( sizeof( double ) ), "size" );
+        assert_eq( Serializable< bool >::size( 0 ), long( sizeof( bool ) ), "size" );
+
+        std::unique_ptr< char[] > buff{ new char[ sizeof( double ) ] };
+        char *ptr = buff.get();
+
+        Serializable< int >::serialize( 42, &ptr );
+        assert_eq( buff.get() + sizeof( int ), ptr, "" );
+        Serializable< bool >::serialize( true, &ptr );
+        assert_eq( buff.get() + sizeof( int ) + sizeof( bool ), ptr, "" );
+
+        ptr = buff.get();
+        int x = Serializable< int >::deserialize( &ptr );
+        assert_eq( x, 42, "" );
+        assert_eq( buff.get() + sizeof( int ), ptr, "" );
+        bool y = Serializable< bool >::deserialize( &ptr );
+        assert( y, "" );
+        assert_eq( buff.get() + sizeof( int ) + sizeof( bool ), ptr, "" );
+
+        ptr = buff.get();
+        Serializable< double >::serialize( 3.14, &ptr );
+        assert_eq( buff.get() + sizeof( double ), ptr, "" );
+        ptr = buff.get();
+        double pi = Serializable< double >::deserialize( &ptr );
+        assert_eq( pi, 3.14, "" );
+        assert_eq( buff.get() + sizeof( double ), ptr, "" );
     }
 
-    Test serializationDeserialization() {
-        using Data = std::tuple< int, long, bool, int, bool >;
-        Data origdata{ 0xff00ff00, 0x7700ff770077ff00, true, 42, false };
+    Test tuple() {
+        using Tup = std::tuple< int, bool, long, int >;
+        const int size = sizeof( int ) * 2 + sizeof( long ) + sizeof( bool );
+        Tup t{ -1, true, 1991, 42 };
 
-        Serialized serial{ TypeSignature::NoType, sizeof( Data ) };
-        Serializer::serializeAs( serial.slice(), origdata );
-        Data deserialized = Serializer::deserializeAs< Data >( serial.slice() );
-        assert_eq( std::get< 0 >( origdata ), std::get< 0 >( deserialized ), "serialization-deserialization error" );
-        assert_eq( std::get< 1 >( origdata ), std::get< 1 >( deserialized ), "serialization-deserialization error" );
-        assert_eq( std::get< 2 >( origdata ), std::get< 2 >( deserialized ), "serialization-deserialization error" );
-        assert_eq( std::get< 3 >( origdata ), std::get< 3 >( deserialized ), "serialization-deserialization error" );
-        assert_eq( std::get< 4 >( origdata ), std::get< 4 >( deserialized ), "serialization-deserialization error" );
+        std::unique_ptr< char[] > buff{ new char[ sizeof( Tup ) ] };
+        char *ptr = buff.get();
+
+        Serializable< Tup >::serialize( t, &ptr );
+        assert_eq( buff.get() + size, ptr, "" );
+        ptr = buff.get();
+        Tup t2 = Serializable< Tup >::deserialize( &ptr );
+        assert_eq( buff.get() + size, ptr, "" );
+        assert_eq( t, t2, "" );
     }
+
+    Test tuple2() {
+        using Tup = std::tuple< int, long, bool, int, bool >;
+        const int size = sizeof( int ) * 2 + sizeof( long ) + 2 * sizeof( bool );
+        Tup t{ 0xff00ff00, 0x7700ff770077ff00, true, 42, false };
+
+        std::unique_ptr< char[] > buff{ new char[ sizeof( Tup ) ] };
+        char *ptr = buff.get();
+
+        Serializable< Tup >::serialize( t, &ptr );
+        assert_eq( buff.get() + size, ptr, "" );
+        ptr = buff.get();
+        Tup t2 = Serializable< Tup >::deserialize( &ptr );
+        assert_eq( buff.get() + size, ptr, "" );
+        assert_eq( t, t2, "" );
+    }
+
+    Test array() {
+        using Type = std::array< int, 4 >;
+        const int size = 4 * sizeof( int );
+
+        Type arr{ { 1, 2, 3, 4 } };
+
+        std::unique_ptr< char[] > buff{ new char[ sizeof( Type ) ] };
+        char *ptr = buff.get();
+
+        Serializable< Type >::serialize( arr, &ptr );
+        assert_eq( buff.get() + size, ptr, "" );
+        ptr = buff.get();
+        Type arr2 = Serializable< Type >::deserialize( &ptr );
+        assert_eq( buff.get() + size, ptr, "" );
+        assert_eq( arr, arr2, "" );
+    }
+};
+
+struct TestSerialization {
 
     struct _TestData {
         using Tuple = std::tuple< long, long, bool >;
