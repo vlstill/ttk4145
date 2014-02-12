@@ -85,7 +85,7 @@ struct comedi_t_struct {
     std::map< int, bool > setBits;
 };
 
-lowlevel::IO::IO( const char *device ) {
+lowlevel::IO::IO( const char * ) {
     _comediHandle = new comedi_t();
 }
 
@@ -93,19 +93,12 @@ lowlevel::IO::~IO() {
     delete _comediHandle;
 }
 
-void lowlevel::IO::io_set_bit( int channel ) {
-    _comediHandle->setBits[ channel ] = true;
+void lowlevel::IO::io_set_bit( int channel, bool value ) {
+    _comediHandle->setBits[ channel ] = value;
 }
 
 
-
-void lowlevel::IO::io_clear_bit( int channel ) {
-    _comediHandle->setBits[ channel ] = false;
-}
-
-
-
-void lowlevel::IO::io_write_analog( int channel, int value ) {
+void lowlevel::IO::io_write_analog( int /* channel */, int /* value */ ) {
     assert_unimplemented();
 }
 
@@ -119,7 +112,7 @@ bool lowlevel::IO::io_read_bit( int channel ) {
 
 
 
-int lowlevel::IO::io_read_analog( int channel ) {
+int lowlevel::IO::io_read_analog( int /* channel */ ) {
     assert_unimplemented();
 }
 
