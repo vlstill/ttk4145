@@ -62,14 +62,14 @@ void Driver::setStopLamp( bool state ) {
     if ( state )
         _lio.io_set_bit( LIGHT_STOP );
     else
-        _lio.io_set_bit( LIGHT_STOP );
+        _lio.io_clear_bit( LIGHT_STOP );
 }
 
 void Driver::setDoorOpenLamp( bool state ) {
     if ( state )
         _lio.io_set_bit( DOOR_OPEN );
     else
-        _lio.io_set_bit( DOOR_OPEN );
+        _lio.io_clear_bit( DOOR_OPEN );
 
 }
 
