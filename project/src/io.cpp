@@ -43,15 +43,8 @@ lowlevel::IO::IO( const char *device ){
 
 lowlevel::IO::~IO() = default;
 
-void lowlevel::IO::io_set_bit( int channel ) {
-    int rc = comedi_dio_write(_comediHandle, channel >> 8, channel & 0xff, 1);
-    assert_eq( rc, 1, "Comedi failure" );
-}
-
-
-
-void lowlevel::IO::io_clear_bit( int channel ) {
-    int rc = comedi_dio_write(_comediHandle, channel >> 8, channel & 0xff, 0);
+void lowlevel::IO::io_set_bit( int channel, bool value ) {
+    int rc = comedi_dio_write(_comediHandle, channel >> 8, channel & 0xff, int( value ) );
     assert_eq( rc, 1, "Comedi failure" );
 }
 
@@ -79,7 +72,7 @@ int lowlevel::IO::io_read_analog( int channel ) {
     int rc = comedi_data_read(_comediHandle, channel >> 8, channel & 0xff, 0, AREF_GROUND, &data);
     assert_eq( rc, 1, "Comedi failure" );
 
-    return (int)data;
+    return int( data );
 }
 
 #else // O_HAVE_LIBCOMEDI

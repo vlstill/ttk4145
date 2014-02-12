@@ -35,18 +35,10 @@ struct IO {
 
 
     /**
-      Sets a digital channel bit.
+      Sets a digital channel bit to diven value.
       @param channel Channel bit to set.
     */
-    void io_set_bit(int channel);
-
-
-
-    /**
-      Clears a digital channel bit.
-      @param channel Channel bit to set.
-    */
-    void io_clear_bit(int channel);
+    void io_set_bit(int channel, bool value);
 
 
 
