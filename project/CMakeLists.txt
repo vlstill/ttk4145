@@ -59,7 +59,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 if( WARNING )
-    appendFlag( "C;CXX" "-Werror -Wextra -Wno-error=extra -Werror=sign-compare -Wno-error=\\\\#warnings -Wno-error=invalid-noreturn -Wno-error=unused-function -Wno-error=deprecated-declarations" )
+    appendFlag( "C;CXX" "-Wextra -Wold-style-cast -Werror=sign-compare" )
 endif()
 
 #
