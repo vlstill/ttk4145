@@ -165,8 +165,16 @@ void Driver::goToTop() { goUpToFloor( _maxFloor ); }
 void Driver::_goTo( Direction dir, int targetFloor ) {
     _setMotorSpeed( dir, 300 );
     int on = -1;
-    while ( (on = getFloor()) != targetFloor ) { _movingOnFloor( on ); }
-    _movingOnFloor( on );
+    while ( true ) {
+        on = getFloor();
+        _movingOnFloor( on );
+        if ( on == targetFloor )
+            break;
+        if ( dir == Direction::Up && on == _maxFloor )
+            break;
+        if ( dir == Direction::Down && on == _minFloor )
+            break;
+    }
     stopElevator();
     setFloorIndicator( targetFloor );
 }
