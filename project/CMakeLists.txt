@@ -86,3 +86,9 @@ wibble_check_target( elevator-test )
 add_dependencies( unit elevator-test )
 target_link_libraries( elevator-test wibble )
 target_link_libraries( elevator-test elevator )
+
+add_executable( signals src/signal.cpp )
+target_link_libraries( signals wibble elevator )
+
+add_executable( stop src/stop.cpp )
+target_link_libraries( stop wibble elevator )
