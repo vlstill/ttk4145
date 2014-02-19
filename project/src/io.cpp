@@ -41,7 +41,9 @@ lowlevel::IO::IO( const char *device ){
     assert(status == 0, "Device failure");
 }
 
-lowlevel::IO::~IO() = default;
+lowlevel::IO::~IO() {
+    comedi_close( _comediHandle );
+}
 
 void lowlevel::IO::io_set_bit( int channel, bool value ) {
     int rc = comedi_dio_write(_comediHandle, channel >> 8, channel & 0xff, int( value ) );
