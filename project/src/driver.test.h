@@ -1,6 +1,9 @@
 #include "driver.h"
 #include "test.h"
 #include <unistd.h>
+#include <vector>
+#include <random>
+#include <sched.h>
 
 using namespace elevator;
 
@@ -93,5 +96,45 @@ struct TestDriver {
         move( 4 );
         move( 3 );
         move( 1 );
+    }
+
+    Test buttons() {
+        Driver driver;
+        driver.init();
+
+        std::vector< Button > buttons;
+        for ( int i = 0; i < 4; ++i ) {
+            buttons.push_back( Button( ButtonType::TargetFloor, i + 1 ) );
+            if ( i < 3 )
+                buttons.push_back( Button( ButtonType::CallUp, i + 1 ) );
+            if ( i != 0 )
+                buttons.push_back( Button( ButtonType::CallDown, i + 1 ) );
+        }
+
+        auto getButton = [&]() -> Button {
+            for ( ;; )
+                for ( auto b : buttons )
+                    if ( driver.getButtonSignal( b ) )
+                        return b;
+        };
+
+        for ( auto b : buttons )
+            driver.setButtonLamp( b, false );
+
+        std::cout << "Keep pressing lighted buttons" << std::endl;
+        std::random_device rd;
+        std::uniform_int_distribution< int > dist( 0, 9 );
+        for ( int i = 0; i < 32; ++i ) {
+            SLEEP;
+            Button b = buttons[ dist( rd ) ];
+            driver.setButtonLamp( b, true );
+            assert( driver.getButtonLamp( b ), "lamp failed" );
+            std::cout << "(" << int( b.type() ) << ", " << b.floor() << ")" << " ---> " << std::flush;
+            Button b2 = getButton();
+            std::cout << "(" << int( b2.type() ) << ", " << b2.floor() << ")" << std::endl;
+            assert_eq( int( b.type() ), int( b2.type() ), "You pressed wrong button or there is error in code (bad type)" );
+            assert_eq( b.floor(), b2.floor(), "You pressed wrong button or there is error in code (bad floor)" );
+            driver.setButtonLamp( b, false );
+        }
     }
 };
