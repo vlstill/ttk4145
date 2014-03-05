@@ -52,6 +52,7 @@ struct Driver {
     bool getStopLamp();
     bool getDoorOpenLamp();
     int getFloorIndicator();
+    bool getButtonSignal( Button button );
 
     void stopElevator();
     int getFloor();

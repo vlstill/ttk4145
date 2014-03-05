@@ -110,6 +110,10 @@ int Driver::getFloorIndicator() {
     return ((_lio.io_read_bit( FLOOR_IND1 ) << 1) | (_lio.io_read_bit( FLOOR_IND2 ))) + 1;
 }
 
+bool Driver::getButtonSignal( Button btn ) {
+    return _lio.io_read_bit( button( btn ) );
+}
+
 void Driver::_setMotorSpeed( Direction direction, int speed ) {
     assert_lt( 0, speed, "Speed must be positive" );
     _lastDirection = direction;
