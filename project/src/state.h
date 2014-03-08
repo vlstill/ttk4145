@@ -1,6 +1,8 @@
-#include "driver.h"
 #include <vector>
 #include <tuple>
+
+#include "driver.h"
+#include "serialization.h"
 
 #ifndef SRC_STATE_H
 #define SRC_STATE_H
@@ -19,10 +21,15 @@ struct State {
         _doorOpenLight( std::get< 4 >( tuple ) ),
         _buttonLights( std::get< 5 >( tuple ) )
     { }
+    State() = default;
 
-    Tuple tuple() {
+    Tuple tuple() const {
         return std::make_tuple( _lastFloor, int( _lastDirection ),
                 _moving, _stopLight, _doorOpenLight, _buttonLights );
+    }
+
+    static constexpr serialization::TypeSignature type() {
+        return serialization::TypeSignature::ElevatorState;
     }
 
   private:
