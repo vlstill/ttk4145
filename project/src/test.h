@@ -5,11 +5,6 @@
 #include <sstream>
 #include <type_traits>
 
-#ifndef SRC_TEST_H
-#define SRC_TEST_H
-
-using Test = void;
-
 #define CODE_LOCATION test::Location( __FILE__, __LINE__, __func__ )
 
 #undef assert
@@ -27,6 +22,11 @@ using Test = void;
 #define assert_lt( X, Y, MSG ) test::assert_lt_fn( X, Y, #X " < " #Y " (" MSG ")", CODE_LOCATION )
 #define assert_unimplemented()  test::assert_unimplemented_fn( CODE_LOCATION )
 #define assert_unreachable( MSG )    test::assert_unreachable_fn( "unreachable: " MSG, CODE_LOCATION )
+
+#ifndef SRC_TEST_H
+#define SRC_TEST_H
+
+using Test = void;
 
 namespace test {
 
@@ -149,27 +149,28 @@ static inline void assert_lt_fn( const X &x, const Y &y, const char *what, Locat
  */
 struct __Preferred { };
 struct __NotPreferred { __NotPreferred( __Preferred ) { } };
-
-template< typename... X >
-std::string __declcheck( X ... ) { assert_unreachable( "compile-tine only" ); }
+template< typename, typename _S >
+struct __TPair { using Snd = _S; };
 
 template< typename X, typename Y >
-static inline auto __format( __Preferred, const char *what, const X &x, const Y &y, const char *op )
-    -> decltype( __declcheck( (std::declval< std::stringstream >() << x << y).tellp() ) )
+static inline auto __format( __Preferred, std::stringstream &ss, const char *what, const X &x, const Y &y, const char *op )
+    -> decltype( ss << x << y )
 {
-    std::stringstream ss;
     ss << what << ", but [" << x << "] " << op << " [" << y << "]";
-    return ss.str();
+    return ss;
 }
 
 template< typename X, typename Y >
-static inline std::string __format( __NotPreferred, const char *what, const X &, const Y &, const char * ) {
-    return what;
+static inline std::stringstream &__format( __NotPreferred, std::stringstream &ss, const char *what, const X &, const Y &, const char * ) {
+    ss << what;
+    return ss;
 }
 
 template< typename X, typename Y >
 static inline std::string format( const char *what, const X &x, const Y &y, const char *op ) {
-    return __format( __Preferred(), what, x, y, op );
+    std::stringstream ss;
+    __format( __Preferred(), ss, what, x, y, op );
+    return ss.str();
 }
 
 
