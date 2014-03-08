@@ -14,12 +14,16 @@
 
 #include <src/test.h>
 
+#ifndef SRC_INTERNAL_SERIALIZATION_H
+#define SRC_INTERNAL_SERIALIZATION_H
+
 namespace serialization {
 namespace _internal {
 
 enum Trait {
     Other = 0,
     Fundamental,
+    Enum,
     Tuple,
     Container,
     TupleSerializable // user defined type with tuple conversions
@@ -34,19 +38,19 @@ template< typename T > constexpr Trait trait();
  * it can be constructed from its tuple encoding
  */
 template< typename T >
-constexpr auto trait_4( wibble::Preferred ) ->
+constexpr auto trait_5( wibble::Preferred ) ->
     decltype( declcheck( T( std::declval< T >().tuple() ),
                 std::tuple_size< decltype( std::declval< T >().tuple() ) >::value ) )
 {
     return Trait::TupleSerializable;
 }
 template< typename T >
-constexpr auto trait_4( wibble::NotPreferred ) -> Trait {
+constexpr auto trait_5( wibble::NotPreferred ) -> Trait {
     return Trait::Other;
 }
 
 template< typename T >
-constexpr auto trait_3( wibble::Preferred ) ->
+constexpr auto trait_4( wibble::Preferred ) ->
     decltype( declcheck( typename T::value_type(), // nested typedef value_type
                 T( std::declval< typename T::value_type * >(), std::declval< typename T::value_type * >() ), // constructible from rage
                 std::declval< T >().begin(), std::declval< T >().end(), // iterators
@@ -56,6 +60,16 @@ constexpr auto trait_3( wibble::Preferred ) ->
         ? Trait::Other
         : Trait::Container;
 }
+
+template< typename T >
+constexpr auto trait_4( wibble::NotPreferred ) -> Trait {
+    return trait_5< T >( wibble::Preferred() );
+}
+
+template< typename T >
+constexpr auto trait_3( wibble::Preferred ) -> typename
+    std::enable_if< std::is_enum< T >::value, Trait >::type
+{ return Trait::Enum; }
 
 template< typename T >
 constexpr auto trait_3( wibble::NotPreferred ) -> Trait {
@@ -223,5 +237,25 @@ struct SerializableImpl< T, Trait::TupleSerializable > {
     }
 };
 
+template< typename T >
+struct SerializableImpl< T, Trait::Enum > {
+    using BaseType = typename std::underlying_type< T >::type;
+    using BaseSerializable = Serializable< BaseType, trait< BaseType >() >;
+
+    static long size( const T &value ) {
+        return BaseSerializable::size( BaseType( value ) );
+    }
+
+    static void serialize( const T &source, char **to ) {
+        BaseSerializable::serialize( BaseType( source ), to );
+    }
+
+    static T deserialize( const char **from ) {
+        return T( BaseSerializable::deserialize( from ) );
+    }
+};
+
 }
 }
+
+#endif // SRC_INTERNAL_SERIALIZATION_H

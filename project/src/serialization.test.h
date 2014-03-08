@@ -42,6 +42,34 @@ struct TestSerializationInternal {
         assert_eq( buff.get() + sizeof( double ), ptr, "" );
     }
 
+    Test enums() {
+        enum X : int32_t { A, B, C };
+        enum class Y : int16_t { D, E, F };
+        enum class Z : int64_t { D, E, F };
+
+        std::unique_ptr< char[] > buff{ new char[ sizeof( int64_t ) ] };
+        char *ptr = buff.get();
+        Serializable< X >::serialize( X::A, &ptr );
+        assert_eq( buff.get() + sizeof( int32_t ), ptr, "" );
+        ptr = buff.get();
+        X x = Serializable< X >::deserialize( &ptr );
+        assert_eq( x, X::A, "" );
+
+        ptr = buff.get();
+        Serializable< Y >::serialize( Y::E, &ptr );
+        assert_eq( buff.get() + sizeof( int16_t ), ptr, "" );
+        ptr = buff.get();
+        Y y = Serializable< Y >::deserialize( &ptr );
+        assert_eq( y, Y::E, "" );
+
+        ptr = buff.get();
+        Serializable< Z >::serialize( Z::E, &ptr );
+        assert_eq( buff.get() + sizeof( int64_t ), ptr, "" );
+        ptr = buff.get();
+        Z z = Serializable< Z >::deserialize( &ptr );
+        assert_eq( z, Z::E, "" );
+    }
+
     Test tuple() {
         using Tup = std::tuple< int, bool, long, int >;
         const int size = sizeof( int ) * 2 + sizeof( long ) + sizeof( bool );
