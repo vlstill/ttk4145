@@ -22,8 +22,7 @@ enum class TypeSignature {
     NoType,
     TestType,
 
-    Command,
-    Status
+    ElevatorState
 };
 
 template< typename T >
