@@ -22,7 +22,7 @@ struct Button {
     Button( ButtonType type, int floor ) : _type( type ), _floor( floor ) { }
     Button( Tuple tuple ) : _type( ButtonType( std::get< 0 >( tuple ) ) ), _floor( std::get< 1 >( tuple ) ) { }
 
-    Tuple tuple() { return std::make_tuple( int( _type ), _floor ); }
+    Tuple tuple() const { return std::make_tuple( int( _type ), _floor ); }
 
     ButtonType type() { return _type; }
     int floor() { return _floor; }
