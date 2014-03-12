@@ -22,6 +22,7 @@ enum class TypeSignature {
     NoType,
     TestType,
 
+    ElevatorCommand,
     ElevatorState
 };
 
