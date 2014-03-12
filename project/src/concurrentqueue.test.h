@@ -29,6 +29,18 @@ struct TestConcurrentQueue {
         assert( q.empty(), "should be empty" );
     }
 
+    Test timeoutDequeue() {
+        ConcurrentQueue< int > q;
+        for ( int i = 0; i < 100; ++i )
+            q.enqueue( i );
+        for ( int i = 0; i < 100; ++i ) {
+            auto x = q.timeoutDequeue( 1 );
+            assert( !x.isNothing(), "should not be empty" );
+            assert_eq( x.value(), i, "invalid data" );
+        }
+        assert( q.empty(), "should be empty" );
+    }
+
     struct Writer {
         int tid;
         ConcurrentQueue< std::pair< int, int > > &queue;

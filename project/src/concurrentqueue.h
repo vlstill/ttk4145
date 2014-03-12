@@ -20,7 +20,6 @@ struct ConcurrentQueue {
     void enqueue( const T &data ) {
         Guard g{ _lock };
         _queue.push_back( data );
-        g.unlock();
         _cond.notify_one();
     }
 
@@ -28,11 +27,28 @@ struct ConcurrentQueue {
      */
     T dequeue() {
         Guard g{ _lock };
-        while ( _queue.empty() )
-            _cond.wait( g );
+        // wait for queue to become non-empty
+        _cond.wait( g, [&]() { return !_queue.empty(); } );
         T data = _queue.front();
         _queue.pop_front();
         return data;
+    }
+
+    /** get and pop head of queue, this will block for up to given number
+     * of milliseconds, and it nothing arrives return nothing
+     */
+    wibble::Maybe< T > timeoutDequeue( long ms ) {
+        Guard g{ _lock };
+        // wait for queue to become non-empty
+        if ( _cond.wait_for( g, std::chrono::milliseconds( ms ),
+                [&]() { return !_queue.empty(); } ) )
+        {
+            T data = _queue.front();
+            _queue.pop_front();
+            return wibble::Maybe< T >::Just( data );
+        } else {
+            return wibble::Maybe< T >::Nothing();
+        }
     }
 
     /** Try getting head of queue, or nothing if it is empty
@@ -48,7 +64,8 @@ struct ConcurrentQueue {
         }
     }
 
-    /** not safe
+    /** not safe -- the fact that empty returns true does not guearantee
+     * dequeue will not block
      */
     bool empty() {
         Guard g{ _lock };
