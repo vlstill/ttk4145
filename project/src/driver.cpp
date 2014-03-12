@@ -114,7 +114,7 @@ bool Driver::getButtonSignal( Button btn ) {
     return _lio.io_read_bit( button( btn ) );
 }
 
-void Driver::_setMotorSpeed( Direction direction, int speed ) {
+void Driver::setMotorSpeed( Direction direction, int speed ) {
     assert_lt( 0, speed, "Speed must be positive" );
     _lastDirection = direction;
     _lio.io_set_bit( MOTORDIR, direction == Direction::Down );
@@ -137,7 +137,7 @@ int Driver::getFloor() {
     else if ( _lio.io_read_bit( SENSOR4 ) )
         return 4;
     else
-        return -1;
+        return INT_MIN;
 
 };
 bool Driver::getStop() { assert_unimplemented(); };
@@ -167,11 +167,11 @@ void Driver::goToBottom() { goDownToFloor( _minFloor ); }
 void Driver::goToTop() { goUpToFloor( _maxFloor ); }
 
 void Driver::_goTo( Direction dir, int targetFloor ) {
-    _setMotorSpeed( dir, 300 );
-    int on = -1;
+    setMotorSpeed( dir, 300 );
+    int on;
     while ( true ) {
         on = getFloor();
-        _movingOnFloor( on );
+        movingOnFloor( on );
         if ( on == targetFloor )
             break;
         if ( dir == Direction::Up && on == _maxFloor )
@@ -183,12 +183,21 @@ void Driver::_goTo( Direction dir, int targetFloor ) {
     setFloorIndicator( targetFloor );
 }
 
-void Driver::_movingOnFloor( int floorSensor ) {
-    if ( floorSensor != -1 ) {
+void Driver::movingOnFloor( int floorSensor ) {
+    if ( floorSensor != INT_MIN ) {
         _lastFloor = floorSensor;
         setFloorIndicator( floorSensor );
     }
     _moving = true;
+}
+
+bool Driver::alive() {
+    if ( getStopLamp() )
+        return true;
+    setStopLamp( true );
+    bool val = getStopLamp();
+    setStopLamp( false );
+    return val;
 }
 
 }

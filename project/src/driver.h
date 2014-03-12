@@ -3,6 +3,7 @@
 /** the middle level API for elevator */
 
 #include <tuple>
+#include <cstdint>
 #include "io.h"
 
 #ifndef SRC_DRIVER_H
@@ -32,7 +33,7 @@ struct Button {
     int _floor;
 };
 
-enum class Direction { Up, Down };
+enum class Direction { None, Up, Down };
 
 struct Driver {
 
@@ -59,19 +60,29 @@ struct Driver {
     bool getStop();
     bool getObstruction();
 
+    /* blocking move */
     void goToFloor( int );
     void goUpToFloor( int );
     void goDownToFloor( int );
     void goToBottom();
     void goToTop();
 
+    int minFloor() const { return _minFloor; }
+    int maxFloor() const { return _maxFloor; }
+    Direction lastDirection() const { return _lastDirection; }
+    int lastFloor() const { return _lastFloor; }
+    bool moving() const { return _moving; }
+
+    void setMotorSpeed( Direction, int );
+    void movingOnFloor( int );
+
+    bool alive();
+
   private:
-    void _setMotorSpeed( Direction, int );
-    void _movingOnFloor( int );
     void _goTo( Direction, int );
 
-    int _minFloor;
-    int _maxFloor;
+    const int _minFloor;
+    const int _maxFloor;
     Direction _lastDirection;
     int _lastFloor;
     bool _moving;
