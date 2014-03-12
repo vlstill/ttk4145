@@ -67,11 +67,11 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR} )
 
 # the target itself
 file( GLOB ELEV_SRC src/*.cpp )
-add_library( elevator STATIC ${ELEV_SRC} )
+add_library( libelevator STATIC ${ELEV_SRC} )
 
 if ( LIBCOMEDI )
     add_definitions( -DO_HAVE_LIBCOMEDI )
-    target_link_libraries( elevator comedi )
+    target_link_libraries( libelevator comedi )
 endif()
 
 # plug in unit test
@@ -85,10 +85,13 @@ wibble_add_test( elevator-test ${testh} )
 wibble_check_target( elevator-test )
 add_dependencies( unit elevator-test )
 target_link_libraries( elevator-test wibble )
-target_link_libraries( elevator-test elevator )
+target_link_libraries( elevator-test libelevator )
 
 add_executable( signals src/signal.cpp )
-target_link_libraries( signals wibble elevator )
+target_link_libraries( signals wibble libelevator )
 
 add_executable( stop src/stop.cpp )
-target_link_libraries( stop wibble elevator )
+target_link_libraries( stop wibble libelevator )
+
+add_executable( elevator src/main.cpp )
+target_link_libraries( elevator wibble libelevator )
