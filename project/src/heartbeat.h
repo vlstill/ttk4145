@@ -98,11 +98,10 @@ struct HeartBeatManager {
      */
     void run() {
         assert( !thr.joinable(), "attempt to re-run HeartBeatManager's check thread" );
-        thr = std::thread( &HeartBeatManager::checkLoop, this );
+        thr = std::thread( &HeartBeatManager::runInThisThread, this );
     }
 
-  private:
-    void checkLoop() {
+    void runInThisThread() {
         while ( !terminate.load( std::memory_order::memory_order_relaxed ) ) {
             auto next = std::chrono::steady_clock::now() + std::chrono::milliseconds( rerunTime );
 
@@ -113,6 +112,7 @@ struct HeartBeatManager {
         }
     }
 
+  private:
     std::deque< HeartBeat > beats;
     std::thread thr;
     std::atomic< bool > terminate;
