@@ -11,6 +11,7 @@ Elevator::Elevator( int id, HeartBeat &heartbeat, ConcurrentQueue< Command > *in
     _heartbeat( heartbeat ), _direction( Direction::None ), _lastDirection( Direction::None ),
     _lastFloor( _driver.minFloor() )
 {
+    _lock.clear();
     for ( int i = 0; i < 4; ++i ) {
         _floorButtons.push_back( Button( ButtonType::TargetFloor, i + 1 ) );
         if ( i < 3 )
@@ -164,6 +165,8 @@ void Elevator::_loop() {
         // initialize cycle
         inFloorButtonsLast = inFloorButtons;
         inFloorButtons = 0;
+        stopLast = stopNow;
+
         // whole loop body is locked to prevent concurrent run with dirrectCommand
         SpinLock guard( _lock );
 
@@ -172,7 +175,7 @@ void Elevator::_loop() {
         // handle buttons and lamps
         for ( auto b : _floorButtons ) {
             if ( _driver.getButtonSignal( b ) ) {
-                if ( !_driver.getButtonLamp( b ) ) {
+                if ( !_driver.getButtonLamp( b ) ) { // new press
                     _driver.setButtonLamp( b, true );
                     if ( b.type() == ButtonType::TargetFloor )
                         // we need to serve this one on this elevator
@@ -191,7 +194,7 @@ void Elevator::_loop() {
 
             /* stop button will (surprise) stop the elevator right where it is
              * movement is resumed once button is presses again */
-            if ( _driver.getStopLamp() ) {
+            if ( stopNow ) {
                 _stopElevator();
                 state = State::Stopped;
             } else {
@@ -218,13 +221,15 @@ void Elevator::_loop() {
         if ( currentFloor != INT_MIN )
             _driver.setFloorIndicator( currentFloor );
 
-        // note: we are here working wich _floorsInDirection shared atomic variable
-        // it can change between subsequent loads, but olny this thread
+        // note: we are here working wich _floorsToServe shared atomic variable
+        // it can change between subsequent loads, but only this thread
         // ever removes any floor from it, so there is nothing dangerous in this
 
+        // now do what is needed depending on state
         if ( state == State::Normal ) {
             if ( _direction != Direction::None ) {
 
+                // check if we arrived at any floor which was scheduled for us
                 if ( currentFloor != INT_MIN && _setHas( _floorsToServe, currentFloor ) ) {
                     _stopElevator();
                     // turn off button lights
@@ -237,6 +242,7 @@ void Elevator::_loop() {
                     removeTargetFloor( currentFloor );
                 }
             } else if ( _floorsToServe != 0 ) {
+                // we are not moving but we can
                 if ( _floorsInDirection( _lastDirection ) )
                     _startElevator( _lastDirection );
                 else
