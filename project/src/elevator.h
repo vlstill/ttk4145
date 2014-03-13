@@ -7,6 +7,7 @@
 #include <src/heartbeat.h>
 #include <src/concurrentqueue.h>
 #include <src/command.h>
+#include <src/floorset.h>
 
 #include <atomic>
 #include <functional>
@@ -18,8 +19,6 @@
 #define SRC_ELEVATOR_H
 
 namespace elevator {
-
-using FloorSet = uint64_t;
 
 struct Elevator {
     Elevator( int, HeartBeat &, ConcurrentQueue< Command > * );
@@ -53,7 +52,7 @@ struct Elevator {
 
     int _id;
     std::atomic< bool > _terminate;
-    std::atomic< FloorSet > _floorsToServe;
+    AtomicFloorSet _floorsToServe;
     std::vector< Button > _floorButtons;
     std::atomic_flag _lock;
     ConcurrentQueue< Command > *_inCommands;
@@ -61,8 +60,6 @@ struct Elevator {
     HeartBeat &_heartbeat;
     std::thread _thread;
 
-    bool _setHas( FloorSet set, int floor ) const;
-    bool _setSet( FloorSet &set, int floor, bool value ) const;
     int _updateAndGetFloor();
     void _stopElevator();
     void _startElevator();

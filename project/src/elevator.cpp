@@ -38,19 +38,11 @@ void Elevator::run() {
 }
 
 void Elevator::addTargetFloor( int floor ) {
-    assert_leq( _driver.minFloor(), floor, "floor out of bounds" );
-    assert_leq( floor, _driver.maxFloor(), "floor out of bounds" );
-
-    int findex = floor - _driver.minFloor();
-    _floorsToServe |= (1ul << findex);
+    _floorsToServe.set( true, floor, _driver );
 }
 
 void Elevator::removeTargetFloor( int floor ) {
-    assert_leq( _driver.minFloor(), floor, "floor out of bounds" );
-    assert_leq( floor, _driver.maxFloor(), "floor out of bounds" );
-
-    int findex = floor - _driver.minFloor();
-    _floorsToServe &= ~(1ul << findex);
+    _floorsToServe.set( false, floor, _driver );
 }
 
 void Elevator::assertConsistency() {
@@ -60,28 +52,8 @@ void Elevator::assertConsistency() {
             || _direction == Direction::None, "invalid direction" );
     assert( _lastDirection == Direction::Up || _direction == Direction::Down
             || _direction == Direction::None, "invalid direction" );
-    assert_leq( _floorsToServe, (1ul << (_driver.maxFloor() - _driver.minFloor() + 1)) - 1,
-            "invalid floor set to serve" );
+    assert( _floorsToServe.consistent( _driver ), "invalid floor set to serve" );
     assert_leq( _driver.minFloor(), _lastFloor, "last floor out of bounds" );
-}
-
-bool Elevator::_setHas( FloorSet set, int floor ) const {
-    assert_leq( _driver.minFloor(), floor, "floor out of bounds" );
-    assert_leq( floor, _driver.maxFloor(), "floor out of bounds" );
-
-    int findex = floor - _driver.minFloor();
-    return set & (1ul << findex);
-}
-
-bool Elevator::_setSet( FloorSet &set, int floor, bool value ) const {
-    assert_leq( _driver.minFloor(), floor, "floor out of bounds" );
-    assert_leq( floor, _driver.maxFloor(), "floor out of bounds" );
-
-    int findex = floor - _driver.minFloor();
-    bool old = set & (1ul << findex);
-    if ( old != value )
-        set ^= 1ul << findex;
-    return old;
 }
 
 Button buttonByDirection( Direction dir, int floor ) {
@@ -128,7 +100,7 @@ Direction Elevator::_optimalDirection() const {
     const int floors = _driver.maxFloor() - _driver.minFloor() + 1;
     int lowerThan{ 0 }, higherThan { 0 };
     for ( int i = 0; i < floors; ++i ) {
-        if ( (_floorsToServe & (1 << i)) == 0 )
+        if ( _floorsToServe.get( i, _driver ) )
             continue;
         if ( i > _lastFloor )
             ++higherThan;
@@ -139,11 +111,10 @@ Direction Elevator::_optimalDirection() const {
 }
 
 bool Elevator::_floorsInDirection( Direction direction ) const {
-    const FloorSet lowerMask = (1ul << (_lastFloor - _driver.minFloor())) - 1;
     if ( direction == Direction::Down )
-        return _floorsToServe & lowerMask;
+        return _floorsToServe.anyLower( _lastFloor, _driver );
     if ( direction == Direction::Up )
-        return _floorsToServe & (~lowerMask << 1); // shift to unmask current floor
+        return _floorsToServe.anyHigher( _lastFloor, _driver );
     return false;
 }
 
@@ -155,7 +126,7 @@ void Elevator::_loop() {
     wibble::raii::defer( [&]() { _stopElevator(); } );
 
     // for some buttons, we need to keep track about changes
-    FloorSet inFloorButtons{ 0 }, inFloorButtonsLast{ 0 };
+    FloorSet inFloorButtons, inFloorButtonsLast;
     bool stopLast{ false }, stopNow{ false };
 
     enum class State { Normal, WaitingForInButton, Stopped };
@@ -164,7 +135,7 @@ void Elevator::_loop() {
     while ( !_terminate.load( std::memory_order::memory_order_relaxed ) ) {
         // initialize cycle
         inFloorButtonsLast = inFloorButtons;
-        inFloorButtons = 0;
+        inFloorButtons.reset();
         stopLast = stopNow;
 
         // whole loop body is locked to prevent concurrent run with dirrectCommand
@@ -186,7 +157,7 @@ void Elevator::_loop() {
                 // of detection re-pressing inside button to get elevator moving
                 // after entering
                 if ( b.type() == ButtonType::TargetFloor )
-                    _setSet( inFloorButtons, b.floor(), true );
+                    inFloorButtons.set( true, b.floor(), _driver );
             }
         }
         if ( (stopNow = _driver.getStop()) && stopNow != stopLast ) {
@@ -230,7 +201,7 @@ void Elevator::_loop() {
             if ( _direction != Direction::None ) {
 
                 // check if we arrived at any floor which was scheduled for us
-                if ( currentFloor != INT_MIN && _setHas( _floorsToServe, currentFloor ) ) {
+                if ( currentFloor != INT_MIN && _floorsToServe.get( currentFloor, _driver ) ) {
                     _stopElevator();
                     // turn off button lights
                     _driver.setButtonLamp( Button( ButtonType::TargetFloor, currentFloor ), false );
@@ -241,7 +212,7 @@ void Elevator::_loop() {
                     // this floor is served (??)
                     removeTargetFloor( currentFloor );
                 }
-            } else if ( _floorsToServe != 0 ) {
+            } else if ( _floorsToServe.hasAny() ) {
                 // we are not moving but we can
                 if ( _floorsInDirection( _lastDirection ) )
                     _startElevator( _lastDirection );
@@ -250,11 +221,7 @@ void Elevator::_loop() {
             }
 
         } else if ( state == State::WaitingForInButton ) {
-            // calculate buttons which were pressed since last check
-            // xor means buttons which changed state, and filters only those
-            // pressed now
-            FloorSet newlyPressedIn = (inFloorButtonsLast ^ inFloorButtons) & inFloorButtons;
-            if ( newlyPressedIn != 0 ) {
+            if ( FloorSet::hasAdditional( inFloorButtonsLast, inFloorButtons ) ) {
                 _driver.setDoorOpenLamp( false );
                 state = State::Normal;
             }
