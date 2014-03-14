@@ -1,4 +1,5 @@
 #include <elevator/test.h>
+#include <elevator/time.h>
 #include <thread>
 #include <chrono>
 #include <cstdint>
@@ -13,10 +14,10 @@
 namespace elevator {
 
 struct HeartBeatException : std::exception {
-    int64_t delta;
-    int64_t threshold;
+    MillisecondTime delta;
+    MillisecondTime threshold;
 
-    HeartBeatException( int64_t delta, int64_t threshold ) :
+    HeartBeatException( MillisecondTime delta, MillisecondTime threshold ) :
         delta( delta ), threshold( threshold )
     { }
 
@@ -35,13 +36,8 @@ struct HeartBeatException : std::exception {
  * you have to make sure first beat will happen before first check */
 struct HeartBeat {
 
-    HeartBeat( int64_t threshold ) : _threshold( threshold ) { }
+    HeartBeat( MillisecondTime threshold ) : _threshold( threshold ) { }
     HeartBeat( const HeartBeat & ) = delete; // disable copying
-
-    static int64_t now() {
-        return std::chrono::duration_cast< std::chrono::milliseconds >(
-                std::chrono::steady_clock::now().time_since_epoch() ).count();
-    }
 
     void beat() {
         _lastBeat.store( now(), std::memory_order_release );
@@ -58,11 +54,11 @@ struct HeartBeat {
     }
 
   private:
-    std::atomic< int64_t > _lastBeat;
-    const int64_t _threshold;
+    std::atomic< MillisecondTime > _lastBeat;
+    const MillisecondTime _threshold;
 
-    int64_t _delta() const {
-        int64_t lastBeat = _lastBeat.load( std::memory_order_acquire );
+    MillisecondTime _delta() const {
+        MillisecondTime lastBeat = _lastBeat.load( std::memory_order_acquire );
         return now() - lastBeat;
     }
 };
@@ -80,8 +76,8 @@ struct HeartBeatManager {
      * to at least 10 times shorter period that is threshold
      * of this beat
      */
-    HeartBeat &getNew( int64_t threshold ) {
-        int64_t thisRerun = threshold / 10;
+    HeartBeat &getNew( MillisecondTime threshold ) {
+        MillisecondTime thisRerun = threshold / 10;
         if ( rerunTime > thisRerun )
             rerunTime = thisRerun;
         beats.emplace_back( threshold );
@@ -103,7 +99,7 @@ struct HeartBeatManager {
 
     void runInThisThread() {
         while ( !terminate.load( std::memory_order::memory_order_relaxed ) ) {
-            auto next = std::chrono::steady_clock::now() + std::chrono::milliseconds( rerunTime );
+            auto next = std::chrono::steady_clock::now() + toSystemTime( rerunTime );
 
             for ( auto &b : beats )
                 b.throwIfLate();
@@ -116,7 +112,7 @@ struct HeartBeatManager {
     std::deque< HeartBeat > beats;
     std::thread thr;
     std::atomic< bool > terminate;
-    int64_t rerunTime;
+    MillisecondTime rerunTime;
 };
 
 }

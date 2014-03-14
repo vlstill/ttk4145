@@ -4,6 +4,7 @@
 #include <deque>
 #include <condition_variable>
 
+#include <elevator/time.h>
 #include <wibble/maybe.h>
 
 #ifndef SRC_CONCURRENT_QUEUE_H
@@ -42,7 +43,7 @@ struct ConcurrentQueue {
     wibble::Maybe< T > timeoutDequeue( long ms ) {
         Guard g{ _lock };
         // wait for queue to become non-empty
-        if ( _cond.wait_for( g, std::chrono::milliseconds( ms ),
+        if ( _cond.wait_for( g, toSystemTime( ms ),
                 [&]() { return !_queue.empty(); } ) )
         {
             T data = _queue.front();
