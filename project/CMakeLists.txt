@@ -59,7 +59,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 if( WARNING )
-    appendFlag( "C;CXX" "-Wextra -Wold-style-cast -Werror=sign-compare" )
+    appendFlag( "C;CXX" "-Wextra -Wold-style-cast -Werror=sign-compare -Werror=return-type" )
 endif()
 
 #
