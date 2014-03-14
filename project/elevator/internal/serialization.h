@@ -12,7 +12,7 @@
 
 #include <wibble/sfinae.h>
 
-#include <src/test.h>
+#include <elevator/test.h>
 
 #ifndef SRC_INTERNAL_SERIALIZATION_H
 #define SRC_INTERNAL_SERIALIZATION_H

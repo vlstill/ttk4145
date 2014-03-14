@@ -4,8 +4,8 @@
 #include <vector>
 #include <atomic>
 
-#include "concurrentqueue.h"
-#include "test.h"
+#include <elevator/concurrentqueue.h>
+#include <elevator/test.h>
 
 struct TestConcurrentQueue {
     Test sequential() {

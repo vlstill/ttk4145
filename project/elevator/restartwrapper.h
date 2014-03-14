@@ -1,7 +1,7 @@
 // C++11    (c) 2014 Vladimír Štill <xstill@fi.muni.cz>
 
 #include <functional>
-#include <src/test.h>
+#include <elevator/test.h>
 
 /* might look a bit magical, but the only thing this does is that is wraps
  * functions in such a way it is automatically restarted if it had thrown

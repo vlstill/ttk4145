@@ -13,9 +13,9 @@
 //
 // 2006, Martin Korsgaard
 
-#include "io.h"
-#include "channels.h"
-#include "test.h"
+#include <elevator/io.h>
+#include <elevator/channels.h>
+#include <elevator/test.h>
 
 #ifdef O_HAVE_LIBCOMEDI
 #include <comedilib.h>

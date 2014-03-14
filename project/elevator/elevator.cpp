@@ -1,6 +1,6 @@
-#include <src/elevator.h>
-#include <src/restartwrapper.h>
-#include <src/test.h>
+#include <elevator/elevator.h>
+#include <elevator/restartwrapper.h>
+#include <elevator/test.h>
 #include <wibble/raii.h>
 #include <thread>
 

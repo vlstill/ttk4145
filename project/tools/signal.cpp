@@ -7,8 +7,8 @@
 #include <iostream>
 #include <atomic>
 
-#include "driver.h"
-#include "test.h"
+#include <elevator/driver.h>
+#include <elevator/test.h>
 
 void handler( int sig, siginfo_t *info, void * ) {
     elevator::Driver driver;

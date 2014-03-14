@@ -1,8 +1,8 @@
 #include <array>
 
-#include "test.h"
-#include "driver.h"
-#include "channels.h"
+#include <elevator/test.h>
+#include <elevator/driver.h>
+#include <elevator/channels.h>
 
 namespace elevator {
 

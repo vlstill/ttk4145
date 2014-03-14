@@ -1,4 +1,4 @@
-#include <src/elevator.h>
+#include <elevator/elevator.h>
 #include <wibble/commandline/parser.h>
 #include <iostream>
 

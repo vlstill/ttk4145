@@ -1,7 +1,7 @@
 // C++11    (c) 2014 Vladimír Štill <xstill@fi.muni.cz>
 
-#include "sharedblock.h"
-#include "test.h"
+#include <elevator/sharedblock.h>
+#include <elevator/test.h>
 
 struct TestSharedBlock {
     Test simple() {

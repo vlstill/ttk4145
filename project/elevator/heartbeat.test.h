@@ -1,5 +1,5 @@
-#include <src/heartbeat.h>
-#include <src/test.h>
+#include <elevator/heartbeat.h>
+#include <elevator/test.h>
 #include <unistd.h>
 
 using namespace elevator;

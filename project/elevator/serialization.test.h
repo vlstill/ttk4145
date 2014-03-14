@@ -1,6 +1,6 @@
 // C++11 (c) 2014 Vladimír Štill
 
-#include "serialization.h"
+#include <elevator/serialization.h>
 
 using namespace serialization;
 

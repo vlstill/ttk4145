@@ -9,9 +9,9 @@
 #include <utility>
 #include <wibble/maybe.h>
 
-#include "test.h"
-#include "udptools.h"
-#include "internal/serialization.h"
+#include <elevator/test.h>
+#include <elevator/udptools.h>
+#include <elevator/internal/serialization.h>
 
 #ifndef SRC_SERIALIZATION_H
 #define SRC_SERIALIZATION_H

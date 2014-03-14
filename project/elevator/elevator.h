@@ -2,12 +2,12 @@
 
 /* High level elevator API/event loop */
 
-#include <src/driver.h>
-#include <src/spinlock.h>
-#include <src/heartbeat.h>
-#include <src/concurrentqueue.h>
-#include <src/command.h>
-#include <src/floorset.h>
+#include <elevator/driver.h>
+#include <elevator/spinlock.h>
+#include <elevator/heartbeat.h>
+#include <elevator/concurrentqueue.h>
+#include <elevator/command.h>
+#include <elevator/floorset.h>
 
 #include <atomic>
 #include <functional>
