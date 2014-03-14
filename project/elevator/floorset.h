@@ -74,6 +74,8 @@ struct _FloorSet {
     }
     Base _floors;
 
+    explicit _FloorSet( uint64_t val ) : _floors( val ) { }
+
     static_assert( std::is_same< uint64_t, Base >::value
             || std::is_same< std::atomic< uint64_t >, Base >::value,
             "Invalid base type, valid is only uint64_t and atomic uint64_t" );

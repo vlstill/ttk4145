@@ -1,3 +1,4 @@
+#include <climits>
 #include <elevator/elevator.h>
 #include <elevator/restartwrapper.h>
 #include <elevator/test.h>
@@ -7,7 +8,7 @@
 namespace elevator {
 
 Elevator::Elevator( int id, HeartBeat &heartbeat, ConcurrentQueue< Command > *inCommands ) :
-    _id( id ), _terminate( false ), _floorsToServe( 0 ), _inCommands( inCommands ),
+    _id( id ), _terminate( false ), _floorsToServe(), _inCommands( inCommands ),
     _heartbeat( heartbeat ), _direction( Direction::None ), _lastDirection( Direction::None ),
     _lastFloor( _driver.minFloor() )
 {

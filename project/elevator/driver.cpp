@@ -1,3 +1,4 @@
+#include <climits>
 #include <array>
 
 #include <elevator/test.h>
