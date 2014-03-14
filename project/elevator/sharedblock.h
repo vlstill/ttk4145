@@ -6,6 +6,8 @@
 #ifndef SRC_SHARED_BLOCK_H
 #define SRC_SHARED_BLOCK_H
 
+namespace elevator {
+
 template< typename T >
 struct SharedBlock {
 
@@ -50,5 +52,7 @@ struct SharedBlock {
     std::mutex _lock;
     T _data;
 };
+
+}
 
 #endif // SRC_SHARED_BLOCK_H

@@ -3,6 +3,8 @@
 #include <elevator/sharedblock.h>
 #include <elevator/test.h>
 
+using namespace elevator;
+
 struct TestSharedBlock {
     Test simple() {
         SharedBlock< int > block{ 42 };

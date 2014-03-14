@@ -9,6 +9,8 @@
 #ifndef SRC_CONCURRENT_QUEUE_H
 #define SRC_CONCURRENT_QUEUE_H
 
+namespace elevator {
+
 /* Concurrent queue
  * so far just make sure it is consisten, no performance optimizations
  * but interface should be general enought to replace queue with faster one
@@ -78,5 +80,7 @@ struct ConcurrentQueue {
     std::condition_variable _cond;
     using Guard = std::unique_lock< std::mutex >;
 };
+
+}
 
 #endif // SRC_CONCURRENT_QUEUE_H

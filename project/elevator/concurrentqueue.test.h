@@ -7,6 +7,8 @@
 #include <elevator/concurrentqueue.h>
 #include <elevator/test.h>
 
+using namespace elevator;
+
 struct TestConcurrentQueue {
     Test sequential() {
         ConcurrentQueue< int > q;
