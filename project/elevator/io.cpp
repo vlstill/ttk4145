@@ -47,14 +47,14 @@ lowlevel::IO::~IO() {
 
 void lowlevel::IO::io_set_bit( int channel, bool value ) {
     int rc = comedi_dio_write(_comediHandle, channel >> 8, channel & 0xff, int( value ) );
-    assert_eq( rc, 1, "Comedi failure" );
+    //assert_eq( rc, 1, "Comedi failure" );
 }
 
 
 
 void lowlevel::IO::io_write_analog( int channel, int value ) {
     int rc = comedi_data_write(_comediHandle, channel >> 8, channel & 0xff, 0, AREF_GROUND, value);
-    assert_eq( rc, 1, "Comedi failure" );
+    //assert_eq( rc, 1, "Comedi failure" );
 }
 
 
@@ -62,7 +62,7 @@ void lowlevel::IO::io_write_analog( int channel, int value ) {
 bool lowlevel::IO::io_read_bit( int channel ) {
     unsigned int data=0;
     int rc = comedi_dio_read(_comediHandle, channel >> 8, channel & 0xff, &data);
-    assert_eq( rc, 1, "Comedi failure" );
+    //assert_eq( rc, 1, "Comedi failure" );
 
     return bool( data );
 }
@@ -72,7 +72,7 @@ bool lowlevel::IO::io_read_bit( int channel ) {
 int lowlevel::IO::io_read_analog( int channel ) {
     lsampl_t data = 0;
     int rc = comedi_data_read(_comediHandle, channel >> 8, channel & 0xff, 0, AREF_GROUND, &data);
-    assert_eq( rc, 1, "Comedi failure" );
+    //assert_eq( rc, 1, "Comedi failure" );
 
     return int( data );
 }
