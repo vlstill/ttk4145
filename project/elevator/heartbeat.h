@@ -53,6 +53,8 @@ struct HeartBeat {
             throw HeartBeatException( delta, _threshold );
     }
 
+    MillisecondTime threshold() const { return _threshold; }
+
   private:
     std::atomic< MillisecondTime > _lastBeat;
     const MillisecondTime _threshold;

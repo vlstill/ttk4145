@@ -37,6 +37,6 @@ struct Command {
     }
 };
 
-#endif // SRC_COMMAND_H
-
 }
+
+#endif // SRC_COMMAND_H
