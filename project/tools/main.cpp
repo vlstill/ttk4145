@@ -1,5 +1,6 @@
 #include <climits>
 #include <elevator/elevator.h>
+#include <elevator/scheduler.h>
 #include <wibble/commandline/parser.h>
 #include <iostream>
 
@@ -69,15 +70,16 @@ struct Main {
         HeartBeatManager heartbeatManager;
 
         ConcurrentQueue< Command > commandsToLocalElevator;
-        /*
-        ConcurrentQueue< Status > statusFromLocalElevator;
         ConcurrentQueue< Command > commandsToOthers;
-        ConcurrentQueue< Status > statusFromOthers;
-        */
+        ConcurrentQueue< StateChange > stateChanges;
 
-        Elevator elevator{ id, heartbeatManager.getNew( 100 /* ms */ ), &commandsToLocalElevator };
+        Elevator elevator{ id, heartbeatManager.getNew( 100 /* ms */ ),
+            commandsToLocalElevator, stateChanges };
+        Scheduler scheduler{ heartbeatManager.getNew( 500 /* ms */ ),
+            stateChanges, commandsToLocalElevator, commandsToOthers };
 
         elevator.run();
+        scheduler.run();
 
         // wait for 2 seconds so that everything has chance to start
         // it something fails to start in this time heartbeat will
