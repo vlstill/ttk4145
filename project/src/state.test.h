@@ -6,9 +6,9 @@
 struct TestState {
 
     Test serialize() {
-        elevator::State st;
+        elevator::StateChange st;
         udp::Packet pck = serialization::Serializer::toPacket( st );
-        wibble::Maybe< elevator::State > st2 = serialization::Serializer::fromPacket< elevator::State >( pck );
+        auto st2 = serialization::Serializer::fromPacket< elevator::StateChange >( pck );
     }
 
 };
