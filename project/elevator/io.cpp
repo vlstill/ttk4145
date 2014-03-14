@@ -100,16 +100,17 @@ void lowlevel::IO::io_set_bit( int channel, bool value ) {
 }
 
 
-void lowlevel::IO::io_write_analog( int /* channel */, int /* value */ ) {
-    assert_unimplemented();
+void lowlevel::IO::io_write_analog( int channel, int value ) {
+    std::cout << "write analog, channel " << channel << " value " << value << std::endl;
 }
 
 
 
 bool lowlevel::IO::io_read_bit( int channel ) {
     auto it = _comediHandle->setBits.find( channel );
-    assert( it != _comediHandle->setBits.end(), "Attempt to read value which was not set" );
-    return it->second;
+    return it != _comediHandle->setBits.end()
+        ? it->second
+        : false;
 }
 
 
