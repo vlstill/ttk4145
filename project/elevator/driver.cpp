@@ -141,8 +141,8 @@ int Driver::getFloor() {
         return INT_MIN;
 
 };
-bool Driver::getStop() { assert_unimplemented(); };
-bool Driver::getObstruction() { assert_unimplemented(); };
+bool Driver::getStop() { return _lio.io_read_bit( STOP );};
+bool Driver::getObstruction() { return _lio.io_read_bit( OBSTRUCTION ); };
 
 void Driver::goToFloor( int floor ) {
     assert_leq( _minFloor, floor, "floor out of bounds" );
