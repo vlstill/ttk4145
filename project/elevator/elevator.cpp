@@ -89,6 +89,7 @@ int Elevator::_updateAndGetFloor() {
 void Elevator::_stopElevator() {
     if ( _elevState.direction != Direction::None )
         _lastDirection = _elevState.direction;
+    _elevState.direction = Direction::None;
     _driver.stopElevator();
 }
 
@@ -112,15 +113,14 @@ void Elevator::_startElevator( Direction direction ) {
 }
 
 Direction Elevator::_optimalDirection() const {
-    const int floors = _driver.maxFloor() - _driver.minFloor() + 1;
     int lowerThan{ 0 }, higherThan { 0 };
-    for ( int i = 0; i < floors; ++i ) {
-        if ( _floorsToServe.get( i, _driver ) )
-            continue;
-        if ( i > _elevState.lastFloor )
-            ++higherThan;
-        if ( i < _elevState.lastFloor )
-            ++lowerThan;
+    for ( int i = _driver.minFloor(); i <= _driver.maxFloor(); ++i ) {
+        if ( _floorsToServe.get( i, _driver ) ) {
+            if ( i > _elevState.lastFloor )
+                ++higherThan;
+            if ( i < _elevState.lastFloor )
+                ++lowerThan;
+        }
     }
     return higherThan >= lowerThan ? Direction::Up : Direction::Down;
 }
@@ -182,6 +182,20 @@ void Elevator::_loop() {
     enum class State { Normal, WaitingForInButton, Stopped };
     State state = State::Normal;
 
+    // initialize according to lights
+    if ( _driver.getStopLamp() )
+        state = State::Stopped;
+    for ( auto b : _floorButtons ) {
+        if ( _driver.getButtonLamp( b ) ) {
+            if ( b.type() == ButtonType::TargetFloor )
+                addTargetFloor( b.floor() );
+            else if ( b.type() == ButtonType::CallDown )
+                _elevState.downButtons.set( true, b.floor(), _driver );
+            else if ( b.type() == ButtonType::CallUp )
+                _elevState.upButtons.set( true, b.floor(), _driver );
+        }
+    }
+
     while ( !_terminate.load( std::memory_order::memory_order_relaxed ) ) {
         // initialize cycle
         inFloorButtonsLast = inFloorButtons;
@@ -212,22 +226,24 @@ void Elevator::_loop() {
             }
         }
         if ( (stopNow = _driver.getStop()) && stopNow != stopLast ) {
-            _driver.setStopLamp( stopNow );
+            bool stopValue = !_driver.getStopLamp();
+            _driver.setStopLamp( stopValue );
 
             /* stop button will (surprise) stop the elevator right where it is
              * movement is resumed once button is presses again */
-            if ( stopNow ) {
+            if ( stopValue ) {
                 _stopElevator();
                 state = State::Stopped;
                 _emitStateChange( ChangeType::Stopped, _updateAndGetFloor() );
             } else {
                 state = State::Normal;
                 _startElevator();
+                _driver.setDoorOpenLamp( false );
                 _emitStateChange( ChangeType::Resumed, _updateAndGetFloor() );
             }
         }
         if ( _driver.getObstruction() ) {
-            _driver.stopElevator();
+            _stopElevator();
             while ( _driver.getObstruction() ) {
                 /* obstruction causes infinite loop which it turn causes
                  * heartbeat timeout, which will of course repeat while
@@ -258,13 +274,13 @@ void Elevator::_loop() {
 
                 // check if we arrived at any floor which was scheduled for us
                 if ( currentFloor != INT_MIN && _floorsToServe.get( currentFloor, _driver ) ) {
-                    _stopElevator();
                     // turn off button lights
                     _setButtonLamp( Button( ButtonType::TargetFloor, currentFloor ), false );
                     _setButtonLamp( buttonByDirection( _elevState.direction, currentFloor ), false );
                     // open doors
                     _driver.setDoorOpenLamp( true );
                     state = State::WaitingForInButton;
+                    _stopElevator();
                     // this floor is served (??)
                     removeTargetFloor( currentFloor );
                     _emitStateChange( ChangeType::Served, currentFloor );

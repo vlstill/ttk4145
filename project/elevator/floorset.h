@@ -40,16 +40,16 @@ struct _FloorSet {
 
     bool anyHigher( int floor, const Driver &d ) const {
         _checkBounds( floor, d );
-        return _floors & ( ~((floor - d.minFloor()) - 1) << 1 );
+        return _floors & ( ~((1ul << (floor - d.minFloor())) - 1) << 1);
     }
 
     bool anyLower( int floor, const Driver &d ) const {
         _checkBounds( floor, d );
-        return _floors & ((floor - d.minFloor()) - 1);
+        return _floors & ((1ul << (floor - d.minFloor())) - 1);
     }
 
     bool consistent( const Driver &d ) const {
-        return !anyHigher( d.maxFloor() - d.minFloor(), d );
+        return !anyHigher( d.maxFloor(), d );
     }
 
     void reset() { _floors = 0; }
