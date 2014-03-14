@@ -1,3 +1,4 @@
+#include <climits>
 #include <unordered_map>
 #include <tuple>
 
@@ -11,54 +12,62 @@
 namespace elevator {
 
 enum class ChangeType {
-    NoType,
+    None,
     KeepAlive,
+
+    InsideButtonPresed,
     ButtonDownPressed,
     ButtonUpPressed,
+
     GoingToServeDown,
     GoingToServeUp,
-    ServedDown,
-    ServedUp
+
+    Served,
+    OnFloor,
+
+    Stopped,
+    Resumed,
 };
 
-struct State {
+struct ElevatorState {
 
-    using Tuple = std::tuple< int, Direction, bool, bool, FloorSet, FloorSet, FloorSet >;
+    using Tuple = std::tuple< int, int, int, Direction, bool, bool, FloorSet, FloorSet, FloorSet >;
 
-    State( Tuple tuple ) :
-        lastFloor( std::get< 0 >( tuple ) ),
-        lastDirection( std::get< 1 >( tuple ) ),
-        stoped( std::get< 2 >( tuple ) ),
-        doorOpen( std::get< 3 >( tuple ) ),
-        insideButtons( std::get< 4 >( tuple ) ),
-        upButtons( std::get< 5 >( tuple ) ),
-        downButtons( std::get< 6 >( tuple ) )
+    ElevatorState( Tuple tuple ) :
+        id( std::get< 0 >( tuple ) ),
+        timestamp( std::get< 1 >( tuple ) ),
+        lastFloor( std::get< 2 >( tuple ) ),
+        direction( std::get< 3 >( tuple ) ),
+        stopped( std::get< 4 >( tuple ) ),
+        doorOpen( std::get< 5 >( tuple ) ),
+        insideButtons( std::get< 6 >( tuple ) ),
+        upButtons( std::get< 7 >( tuple ) ),
+        downButtons( std::get< 8 >( tuple ) )
     { }
-    State() = default;
+    ElevatorState() : id( INT_MIN ), timestamp( 0 ), lastFloor( INT_MIN ),
+        direction( Direction::None ), stopped( true ), doorOpen( true )
+    { }
 
     Tuple tuple() const {
-        return std::make_tuple( lastFloor, lastDirection, stoped, doorOpen,
-                insideButtons, upButtons, downButtons );
+        return std::make_tuple( id, timestamp, lastFloor, direction,
+                stopped, doorOpen, insideButtons, upButtons, downButtons );
     }
 
+    int id;
+    long timestamp;
     int lastFloor;
-    Direction lastDirection;
-    bool stoped;
+    Direction direction;
+    bool stopped;
     bool doorOpen;
     FloorSet insideButtons;
     FloorSet upButtons;
     FloorSet downButtons;
 };
 
-struct RemoteElevatorState : State {
-    int id;
-    long timestamp;
-};
-
 struct StateChange {
-    using Tuple = std::tuple< ChangeType, int, State >;
+    using Tuple = std::tuple< ChangeType, int, ElevatorState >;
 
-    StateChange() = default;
+    StateChange() : changeType( ChangeType::None ), changeFloor( INT_MIN ) { }
     StateChange( Tuple tuple ) :
         changeType( std::get< 0 >( tuple ) ),
         changeFloor( std::get< 1 >( tuple ) ),
@@ -73,12 +82,13 @@ struct StateChange {
 
     ChangeType changeType;
     int changeFloor;
-    State state;
+    ElevatorState state;
 };
 
 struct GlobalState {
-    void update( RemoteElevatorState state ) {
+    void update( ElevatorState state ) {
         _elevators[ state.id ] = state;
+        updateButtons();
     }
 
     void updateButtons() {
@@ -92,14 +102,14 @@ struct GlobalState {
 
     FloorSet upButtons() const { return _upButtons; }
     FloorSet downButtons() const { return _downButtons; }
-    std::unordered_map< int, RemoteElevatorState > elevators() const {
+    std::unordered_map< int, ElevatorState > elevators() const {
         return _elevators;
     }
 
   private:
     FloorSet _upButtons;
     FloorSet _downButtons;
-    std::unordered_map< int, RemoteElevatorState > _elevators;
+    std::unordered_map< int, ElevatorState > _elevators;
 };
 
 }
