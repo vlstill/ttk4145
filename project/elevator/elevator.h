@@ -7,6 +7,7 @@
 #include <elevator/heartbeat.h>
 #include <elevator/concurrentqueue.h>
 #include <elevator/command.h>
+#include <elevator/state.h>
 #include <elevator/floorset.h>
 
 #include <atomic>
@@ -21,7 +22,7 @@
 namespace elevator {
 
 struct Elevator {
-    Elevator( int, HeartBeat &, ConcurrentQueue< Command > * );
+    Elevator( int, HeartBeat &, ConcurrentQueue< Command > &, ConcurrentQueue< StateChange > & );
     ~Elevator();
 
     /* spawn control loop thread and run elevator (non blocking) */
@@ -50,12 +51,11 @@ struct Elevator {
   private:
     void _loop();
 
-    int _id;
     std::atomic< bool > _terminate;
     AtomicFloorSet _floorsToServe;
-    std::vector< Button > _floorButtons;
     std::atomic_flag _lock;
-    ConcurrentQueue< Command > *_inCommands;
+    ConcurrentQueue< Command > &_inCommands;
+    ConcurrentQueue< StateChange > &_outState;
     Driver _driver;
     HeartBeat &_heartbeat;
     std::thread _thread;
@@ -64,14 +64,19 @@ struct Elevator {
     void _stopElevator();
     void _startElevator();
     void _startElevator( Direction );
+    void _setButtonLamp( Button, bool );
     Direction _optimalDirection() const;
     bool _floorsInDirection( Direction ) const;
+    void _emitStateChange( ChangeType, int );
 
-    Direction _direction;
+    ElevatorState _elevState;
     Direction _lastDirection;
-    int _lastFloor;
+    MillisecondTime _lastStateUpdate;
 
-    static constexpr int _speed = 300;
+    std::vector< Button > _floorButtons;
+
+    static constexpr MillisecondTime _speed = 300;
+    static constexpr MillisecondTime _keepAlive = 500;
 };
 
 }

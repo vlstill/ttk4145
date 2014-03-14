@@ -7,10 +7,18 @@
 
 namespace elevator {
 
-Elevator::Elevator( int id, HeartBeat &heartbeat, ConcurrentQueue< Command > *inCommands ) :
-    _id( id ), _terminate( false ), _floorsToServe(), _inCommands( inCommands ),
-    _heartbeat( heartbeat ), _direction( Direction::None ), _lastDirection( Direction::None ),
-    _lastFloor( _driver.minFloor() )
+Elevator::Elevator(
+        int id,
+        HeartBeat &heartbeat,
+        ConcurrentQueue< Command > &inCommands,
+        ConcurrentQueue< StateChange > &outState
+    ) : _terminate( false ),
+        _floorsToServe(),
+        _inCommands( inCommands ),
+        _outState( outState ),
+        _heartbeat( heartbeat ),
+        _lastDirection( Direction::None ),
+        _lastStateUpdate( 0 )
 {
     _lock.clear();
     for ( int i = 0; i < 4; ++i ) {
@@ -20,6 +28,8 @@ Elevator::Elevator( int id, HeartBeat &heartbeat, ConcurrentQueue< Command > *in
         if ( i != 0 )
             _floorButtons.push_back( Button( ButtonType::CallDown, i + 1 ) );
     }
+    _elevState.lastFloor = _driver.minFloor();
+    _elevState.id = id;
 }
 Elevator::~Elevator() {
     if ( _thread.joinable() ) {
@@ -49,12 +59,16 @@ void Elevator::removeTargetFloor( int floor ) {
 void Elevator::assertConsistency() {
     assert( _driver.alive(), "elevator hardware error" );
     assert_lt( _driver.minFloor(), _driver.maxFloor(), "invalid floor bounds" );
-    assert( _direction == Direction::Up || _direction == Direction::Down
-            || _direction == Direction::None, "invalid direction" );
-    assert( _lastDirection == Direction::Up || _direction == Direction::Down
-            || _direction == Direction::None, "invalid direction" );
+    assert( _elevState.direction == Direction::Up || _elevState.direction == Direction::Down
+            || _elevState.direction == Direction::None, "invalid direction" );
+    assert( _lastDirection == Direction::Up || _lastDirection == Direction::Down
+            || _lastDirection == Direction::None, "invalid direction" );
     assert( _floorsToServe.consistent( _driver ), "invalid floor set to serve" );
-    assert_leq( _driver.minFloor(), _lastFloor, "last floor out of bounds" );
+    assert( _elevState.insideButtons.consistent( _driver ), "invalid floor set" );
+    assert( _elevState.upButtons.consistent( _driver ), "invalid floor set" );
+    assert( _elevState.downButtons.consistent( _driver ), "invalid floor set" );
+    assert_leq( _driver.minFloor(), _elevState.lastFloor, "last floor out of bounds" );
+    assert_leq( _elevState.lastFloor, _driver.maxFloor(), "last floor out of bounds" );
 }
 
 Button buttonByDirection( Direction dir, int floor ) {
@@ -68,13 +82,13 @@ Button buttonByDirection( Direction dir, int floor ) {
 int Elevator::_updateAndGetFloor() {
     int f = _driver.getFloor();
     if ( f != INT_MIN )
-        _lastFloor = f;
+        _elevState.lastFloor = f;
     return f;
 }
 
 void Elevator::_stopElevator() {
-    if ( _direction != Direction::None )
-        _lastDirection = _direction;
+    if ( _elevState.direction != Direction::None )
+        _lastDirection = _elevState.direction;
     _driver.stopElevator();
 }
 
@@ -83,18 +97,18 @@ void Elevator::_startElevator() {
 }
 
 void Elevator::_startElevator( Direction direction ) {
-    _direction = direction;
-    // we may not have current information in _lastFloor, on the other hand
+    _elevState.direction = direction;
+    // we may not have current information in _elevState.lastFloor, on the other hand
     // sensor never lies but may not know
     _updateAndGetFloor(); // update information if sensor senses floor
-    if ( _lastFloor == _driver.minFloor() )
-        _direction = Direction::Up;
-    else if ( _lastFloor == _driver.maxFloor() )
-        _direction = Direction::Down;
+    if ( _elevState.lastFloor == _driver.minFloor() )
+        _elevState.direction = Direction::Up;
+    else if ( _elevState.lastFloor == _driver.maxFloor() )
+        _elevState.direction = Direction::Down;
     // if we have no clue select direction by requests
-    if ( _direction == Direction::None )
-        _direction = _optimalDirection();
-    _driver.setMotorSpeed( _direction, _speed );
+    if ( _elevState.direction == Direction::None )
+        _elevState.direction = _optimalDirection();
+    _driver.setMotorSpeed( _elevState.direction, _speed );
 }
 
 Direction Elevator::_optimalDirection() const {
@@ -103,9 +117,9 @@ Direction Elevator::_optimalDirection() const {
     for ( int i = 0; i < floors; ++i ) {
         if ( _floorsToServe.get( i, _driver ) )
             continue;
-        if ( i > _lastFloor )
+        if ( i > _elevState.lastFloor )
             ++higherThan;
-        if ( i < _lastFloor )
+        if ( i < _elevState.lastFloor )
             ++lowerThan;
     }
     return higherThan >= lowerThan ? Direction::Up : Direction::Down;
@@ -113,10 +127,44 @@ Direction Elevator::_optimalDirection() const {
 
 bool Elevator::_floorsInDirection( Direction direction ) const {
     if ( direction == Direction::Down )
-        return _floorsToServe.anyLower( _lastFloor, _driver );
+        return _floorsToServe.anyLower( _elevState.lastFloor, _driver );
     if ( direction == Direction::Up )
-        return _floorsToServe.anyHigher( _lastFloor, _driver );
+        return _floorsToServe.anyHigher( _elevState.lastFloor, _driver );
     return false;
+}
+
+void Elevator::_emitStateChange( ChangeType type, int floor ) {
+    StateChange change;
+    change.state = _elevState;
+    change.changeType = type;
+    change.changeFloor = floor;
+    _lastStateUpdate = change.state.timestamp = now();
+    _outState.enqueue( change );
+}
+
+void Elevator::_setButtonLamp( Button btn, bool val ) {
+    _driver.setButtonLamp( btn, val );
+    FloorSet *toUpdate = nullptr;
+    if ( btn.type() == ButtonType::CallUp )
+        toUpdate = &_elevState.upButtons;
+    else if ( btn.type() == ButtonType::CallDown )
+        toUpdate = &_elevState.downButtons;
+    else if ( btn.type() == ButtonType::TargetFloor )
+        toUpdate = &_elevState.insideButtons;
+    assert_neq( toUpdate, nullptr, "unhandled button type" );
+    toUpdate->set( val, btn.floor(), _driver );
+}
+
+ChangeType changeTypeByButton( ButtonType btnt ) {
+    switch ( btnt ) {
+    case ButtonType::CallUp:
+        return ChangeType::ButtonDownPressed;
+    case ButtonType::CallDown:
+        return ChangeType::ButtonUpPressed;
+    case ButtonType::TargetFloor:
+        return ChangeType::InsideButtonPresed;
+    default: assert_unreachable();
+    }
 }
 
 void Elevator::_loop() {
@@ -124,11 +172,12 @@ void Elevator::_loop() {
     // we want to stop elevator (ok, it works only for exceptions caught somewhere
     // above, but nothing better exists and we are catching assertions and
     // restarting)
-    wibble::raii::defer( [&]() { _stopElevator(); } );
+    auto d_stop = wibble::raii::defer( [&]() { _stopElevator(); } );
 
     // for some buttons, we need to keep track about changes
     FloorSet inFloorButtons, inFloorButtonsLast;
     bool stopLast{ false }, stopNow{ false };
+    int prevFloor = INT_MIN;
 
     enum class State { Normal, WaitingForInButton, Stopped };
     State state = State::Normal;
@@ -148,10 +197,11 @@ void Elevator::_loop() {
         for ( auto b : _floorButtons ) {
             if ( _driver.getButtonSignal( b ) ) {
                 if ( !_driver.getButtonLamp( b ) ) { // new press
-                    _driver.setButtonLamp( b, true );
+                    _setButtonLamp( b, true );
                     if ( b.type() == ButtonType::TargetFloor )
                         // we need to serve this one on this elevator
                         addTargetFloor( b.floor() );
+                    _emitStateChange( changeTypeByButton( b.type() ), b.floor() );
                 }
                 // furthermore we need to keep track of pressed inside buttons
                 // regardless if they were already lit, this is for the purpose
@@ -169,9 +219,11 @@ void Elevator::_loop() {
             if ( stopNow ) {
                 _stopElevator();
                 state = State::Stopped;
+                _emitStateChange( ChangeType::Stopped, _updateAndGetFloor() );
             } else {
                 state = State::Normal;
                 _startElevator();
+                _emitStateChange( ChangeType::Resumed, _updateAndGetFloor() );
             }
         }
         if ( _driver.getObstruction() ) {
@@ -185,13 +237,16 @@ void Elevator::_loop() {
 
         int currentFloor = _updateAndGetFloor();
         // safety precautions
-        if ( currentFloor == _driver.maxFloor() && _direction == Direction::Up )
+        if ( currentFloor == _driver.maxFloor() && _elevState.direction == Direction::Up )
             _stopElevator();
-        if ( currentFloor == _driver.minFloor() && _direction == Direction::Down )
+        if ( currentFloor == _driver.minFloor() && _elevState.direction == Direction::Down )
             _stopElevator();
 
         if ( currentFloor != INT_MIN )
             _driver.setFloorIndicator( currentFloor );
+
+        if ( currentFloor != prevFloor )
+            _emitStateChange( ChangeType::OnFloor, currentFloor );
 
         // note: we are here working wich _floorsToServe shared atomic variable
         // it can change between subsequent loads, but only this thread
@@ -199,19 +254,20 @@ void Elevator::_loop() {
 
         // now do what is needed depending on state
         if ( state == State::Normal ) {
-            if ( _direction != Direction::None ) {
+            if ( _elevState.direction != Direction::None ) {
 
                 // check if we arrived at any floor which was scheduled for us
                 if ( currentFloor != INT_MIN && _floorsToServe.get( currentFloor, _driver ) ) {
                     _stopElevator();
                     // turn off button lights
-                    _driver.setButtonLamp( Button( ButtonType::TargetFloor, currentFloor ), false );
-                    _driver.setButtonLamp( buttonByDirection( _direction, currentFloor ), false );
+                    _setButtonLamp( Button( ButtonType::TargetFloor, currentFloor ), false );
+                    _setButtonLamp( buttonByDirection( _elevState.direction, currentFloor ), false );
                     // open doors
                     _driver.setDoorOpenLamp( true );
                     state = State::WaitingForInButton;
                     // this floor is served (??)
                     removeTargetFloor( currentFloor );
+                    _emitStateChange( ChangeType::Served, currentFloor );
                 }
             } else if ( _floorsToServe.hasAny() ) {
                 // we are not moving but we can
@@ -219,6 +275,10 @@ void Elevator::_loop() {
                     _startElevator( _lastDirection );
                 else
                     _startElevator( Direction::None ); // decides which direction is better itself
+
+                _emitStateChange( _elevState.direction == Direction::Down
+                        ? ChangeType::GoingToServeDown : ChangeType::GoingToServeUp,
+                        currentFloor );
             }
 
         } else if ( state == State::WaitingForInButton ) {
@@ -232,10 +292,14 @@ void Elevator::_loop() {
             assert_unreachable();
         }
 
+        if ( _lastStateUpdate + _keepAlive <= now() )
+            _emitStateChange( ChangeType::KeepAlive, currentFloor );
+
         // it is important to do heartbeat at the end so that we don't end up
         // beating even in case we are repeatedlay auto-restarted due to assertion
         // we don't need to care about beating too often, it is cheap and safe
         _heartbeat.beat();
+        prevFloor = currentFloor;
     }
 }
 
