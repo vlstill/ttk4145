@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ifaddrs.h>
 
 namespace udp {
 
@@ -29,6 +30,18 @@ Address fromNetAddress( sockaddr_in netAddr ) {
         IPv4Address{ ntohl( netAddr.sin_addr.s_addr ) },
         Port{ ntohs( netAddr.sin_port ) }
     };
+}
+
+std::set< IPv4Address > IPv4Address::getMachineAddresses() {
+    std::set< IPv4Address > addresses;
+    struct ifaddrs *interfaces;
+    int rc = getifaddrs( &interfaces );
+    assert_eq( rc, 0, "getifaddrs failed" );
+    for ( struct ifaddrs *addr = interfaces; addr != NULL; addr = addr->ifa_next ) {
+        if ( addr->ifa_addr && addr->ifa_addr->sa_family == AF_INET )
+            addresses.insert( fromNetAddress( *reinterpret_cast< sockaddr_in * >( addr->ifa_addr ) ).ip() );
+    }
+    return addresses;
 }
 
 struct Socket::_Data {

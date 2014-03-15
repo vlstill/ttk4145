@@ -4,6 +4,7 @@
 #include <array>
 #include <memory>
 #include <tuple>
+#include <set>
 
 #include <elevator/test.h>
 
@@ -58,6 +59,8 @@ struct IPv4Address {
     static const IPv4Address localhost;
     static const IPv4Address any;
     static const IPv4Address broadcast;
+
+    static std::set< IPv4Address > getMachineAddresses();
 
   private:
     uint32_t _addr;

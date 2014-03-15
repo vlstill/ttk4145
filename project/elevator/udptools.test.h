@@ -10,6 +10,11 @@
 static bool alarmed = false;
 
 struct TestUdp {
+    Test getAddresses() {
+        for ( auto addr : udp::IPv4Address::getMachineAddresses() )
+            std::cout << addr << std::endl;
+    }
+
     Test basic() {
         udp::Socket sock{};
     }
