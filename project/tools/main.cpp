@@ -148,7 +148,7 @@ struct Main {
 
         Elevator elevator{ id, heartbeatManager.getNew( 100 /* ms */ ),
             commandsToLocalElevator, stateChanges };
-        Scheduler scheduler{ heartbeatManager.getNew( 500 /* ms */ ),
+        Scheduler scheduler{ id, heartbeatManager.getNew( 500 /* ms */ ),
             stateChanges, commandsToLocalElevator, commandsToOthers };
 
         elevator.run();
