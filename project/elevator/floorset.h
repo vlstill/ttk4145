@@ -67,6 +67,10 @@ struct _FloorSet {
         return _FloorSet( _floors |= o._floors );
     }
 
+    friend _FloorSet operator|( _FloorSet a, _FloorSet b ) {
+        return _FloorSet( a._floors | b._floors );
+    }
+
   private:
     static void _checkBounds( int floor, const Driver &d ) {
         assert_leq( d.minFloor(), floor, "out-of-bounds floor (minimun)" );
