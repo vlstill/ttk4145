@@ -52,7 +52,6 @@ struct Elevator {
     void _loop();
 
     std::atomic< bool > _terminate;
-    AtomicFloorSet _floorsToServe;
     std::atomic_flag _lock;
     ConcurrentQueue< Command > &_inCommands;
     ConcurrentQueue< StateChange > &_outState;
@@ -66,8 +65,9 @@ struct Elevator {
     void _startElevator( Direction );
     void _setButtonLamp( Button, bool );
     Direction _optimalDirection() const;
-    bool _floorsInDirection( Direction ) const;
+    bool _priorityFloorsInDirection( Direction ) const;
     void _emitStateChange( ChangeType, int );
+    FloorSet _allButtons() const;
 
     ElevatorState _elevState;
     Direction _lastDirection;

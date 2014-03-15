@@ -13,7 +13,6 @@ Elevator::Elevator(
         ConcurrentQueue< Command > &inCommands,
         ConcurrentQueue< StateChange > &outState
     ) : _terminate( false ),
-        _floorsToServe(),
         _inCommands( inCommands ),
         _outState( outState ),
         _heartbeat( heartbeat ),
@@ -49,12 +48,10 @@ void Elevator::run() {
 }
 
 void Elevator::addTargetFloor( int floor ) {
-    _floorsToServe.set( true, floor, _driver );
     _elevState.insideButtons.set( true, floor, _driver );
 }
 
 void Elevator::removeTargetFloor( int floor ) {
-    _floorsToServe.set( false, floor, _driver );
     _elevState.insideButtons.set( false, floor, _driver );
 }
 
@@ -64,7 +61,6 @@ void Elevator::assertConsistency() {
             || _elevState.direction == Direction::None, "invalid direction" );
     assert( _lastDirection == Direction::Up || _lastDirection == Direction::Down
             || _lastDirection == Direction::None, "invalid direction" );
-    assert( _floorsToServe.consistent( _driver ), "invalid floor set to serve" );
     assert( _elevState.insideButtons.consistent( _driver ), "invalid floor set" );
     assert( _elevState.upButtons.consistent( _driver ), "invalid floor set" );
     assert( _elevState.downButtons.consistent( _driver ), "invalid floor set" );
@@ -116,8 +112,13 @@ void Elevator::_startElevator( Direction direction ) {
 
 Direction Elevator::_optimalDirection() const {
     int lowerThan{ 0 }, higherThan { 0 };
+    FloorSet floorsToServe = _elevState.insideButtons;
+    if ( !floorsToServe.hasAny() ) {
+        floorsToServe |= _elevState.upButtons;
+        floorsToServe |= _elevState.downButtons;
+    }
     for ( int i = _driver.minFloor(); i <= _driver.maxFloor(); ++i ) {
-        if ( _floorsToServe.get( i, _driver ) ) {
+        if ( floorsToServe.get( i, _driver ) ) {
             if ( i > _elevState.lastFloor )
                 ++higherThan;
             if ( i < _elevState.lastFloor )
@@ -127,11 +128,18 @@ Direction Elevator::_optimalDirection() const {
     return higherThan >= lowerThan ? Direction::Up : Direction::Down;
 }
 
-bool Elevator::_floorsInDirection( Direction direction ) const {
+/* we want to prioritize inside buttons, imagine:
+ * - elevator is on floor 3 and last went up, inside is pressed 2, outside 4
+ *   normally we preffer continuing withing last direction to avoid malicious
+ *   co-travellers from calling elevator to other direction from inside,
+ *   but this must work only for inside buttons, we don't want elevator
+ *   to be called to floor 4 in this situation
+ */
+bool Elevator::_priorityFloorsInDirection( Direction direction ) const {
     if ( direction == Direction::Down )
-        return _floorsToServe.anyLower( _elevState.lastFloor, _driver );
+        return _elevState.insideButtons.anyLower( _elevState.lastFloor, _driver );
     if ( direction == Direction::Up )
-        return _floorsToServe.anyHigher( _elevState.lastFloor, _driver );
+        return _elevState.insideButtons.anyHigher( _elevState.lastFloor, _driver );
     return false;
 }
 
@@ -167,6 +175,10 @@ ChangeType changeTypeByButton( ButtonType btnt ) {
         return ChangeType::InsideButtonPresed;
     default: assert_unreachable();
     }
+}
+
+FloorSet Elevator::_allButtons() const {
+    return _elevState.insideButtons | _elevState.upButtons | _elevState.downButtons;
 }
 
 void Elevator::_loop() {
@@ -292,7 +304,7 @@ void Elevator::_loop() {
         if ( state == State::Normal ) {
 
             // check if we arrived at any floor which was scheduled for us
-            if ( currentFloor != INT_MIN && _floorsToServe.get( currentFloor, _driver ) ) {
+            if ( currentFloor != INT_MIN && _elevState.insideButtons.get( currentFloor, _driver ) ) {
                 // turn off button lights
                 _setButtonLamp( Button( ButtonType::TargetFloor, currentFloor ), false );
                 if ( _elevState.direction != Direction::None )
@@ -305,9 +317,9 @@ void Elevator::_loop() {
                 // this floor is served (??)
                 removeTargetFloor( currentFloor );
                 _emitStateChange( ChangeType::Served, currentFloor );
-            } else if ( _elevState.direction == Direction::None && _floorsToServe.hasAny() ) {
+            } else if ( _elevState.direction == Direction::None && _allButtons().hasAny() ) {
                 // we are not moving but we can
-                if ( _floorsInDirection( _lastDirection ) )
+                if ( _priorityFloorsInDirection( _lastDirection ) )
                     _startElevator( _lastDirection );
                 else
                     _startElevator( Direction::None ); // decides which direction is better itself
