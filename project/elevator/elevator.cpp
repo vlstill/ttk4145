@@ -50,10 +50,12 @@ void Elevator::run() {
 
 void Elevator::addTargetFloor( int floor ) {
     _floorsToServe.set( true, floor, _driver );
+    _elevState.insideButtons.set( true, floor, _driver );
 }
 
 void Elevator::removeTargetFloor( int floor ) {
     _floorsToServe.set( false, floor, _driver );
+    _elevState.insideButtons.set( false, floor, _driver );
 }
 
 void Elevator::assertConsistency() {
@@ -109,6 +111,7 @@ void Elevator::_startElevator( Direction direction ) {
     if ( _elevState.direction == Direction::None )
         _elevState.direction = _optimalDirection();
     _driver.setMotorSpeed( _elevState.direction, _speed );
+    _driver.setDoorOpenLamp( false );
 }
 
 Direction Elevator::_optimalDirection() const {
@@ -177,6 +180,7 @@ void Elevator::_loop() {
     FloorSet inFloorButtons, inFloorButtonsLast;
     bool stopLast{ false }, stopNow{ false };
     int prevFloor = INT_MIN;
+    MillisecondTime waitingStarted{ 0 };
 
     enum class State { Normal, WaitingForInButton, Stopped };
     State state = State::Normal;
@@ -243,10 +247,27 @@ void Elevator::_loop() {
         }
         if ( _driver.getObstruction() ) {
             _stopElevator();
+            for ( auto b : _floorButtons )
+                _driver.setButtonLamp( b, false );
+            _driver.setStopLamp( false );
+            _driver.setDoorOpenLamp( false );
             while ( _driver.getObstruction() ) {
                 /* obstruction causes infinite loop which it turn causes
-                 * heartbeat timeout, which will of course repeat while
-                 * obstruction is pressed */
+                 * heartbeat timeout and terminates whole process */
+            }
+        }
+        auto maybeCommand = _inCommands.tryDequeue();
+        if ( !maybeCommand.isNothing() ) {
+            auto command = maybeCommand.value();
+            switch ( command.commandType ) {
+                case CommandType::Empty:
+                    break;
+                case CommandType::CallToFloorAndGoUp:
+                case CommandType::CallToFloorAndGoDown:
+                    addTargetFloor( command.targetFloor );
+                    break;
+                case CommandType::ParkAndExit:
+                    assert_unimplemented();
             }
         }
 
@@ -269,22 +290,22 @@ void Elevator::_loop() {
 
         // now do what is needed depending on state
         if ( state == State::Normal ) {
-            if ( _elevState.direction != Direction::None ) {
 
-                // check if we arrived at any floor which was scheduled for us
-                if ( currentFloor != INT_MIN && _floorsToServe.get( currentFloor, _driver ) ) {
-                    // turn off button lights
-                    _setButtonLamp( Button( ButtonType::TargetFloor, currentFloor ), false );
+            // check if we arrived at any floor which was scheduled for us
+            if ( currentFloor != INT_MIN && _floorsToServe.get( currentFloor, _driver ) ) {
+                // turn off button lights
+                _setButtonLamp( Button( ButtonType::TargetFloor, currentFloor ), false );
+                if ( _elevState.direction != Direction::None )
                     _setButtonLamp( buttonByDirection( _elevState.direction, currentFloor ), false );
-                    // open doors
-                    _driver.setDoorOpenLamp( true );
-                    state = State::WaitingForInButton;
-                    _stopElevator();
-                    // this floor is served (??)
-                    removeTargetFloor( currentFloor );
-                    _emitStateChange( ChangeType::Served, currentFloor );
-                }
-            } else if ( _floorsToServe.hasAny() ) {
+                // open doors
+                _driver.setDoorOpenLamp( true );
+                state = State::WaitingForInButton;
+                waitingStarted = now();
+                _stopElevator();
+                // this floor is served (??)
+                removeTargetFloor( currentFloor );
+                _emitStateChange( ChangeType::Served, currentFloor );
+            } else if ( _elevState.direction == Direction::None && _floorsToServe.hasAny() ) {
                 // we are not moving but we can
                 if ( _floorsInDirection( _lastDirection ) )
                     _startElevator( _lastDirection );
@@ -297,7 +318,9 @@ void Elevator::_loop() {
             }
 
         } else if ( state == State::WaitingForInButton ) {
-            if ( FloorSet::hasAdditional( inFloorButtonsLast, inFloorButtons ) ) {
+            if ( FloorSet::hasAdditional( inFloorButtonsLast, inFloorButtons )
+                    || (waitingStarted + _waitThreshold) < now() )
+            {
                 _driver.setDoorOpenLamp( false );
                 state = State::Normal;
             }

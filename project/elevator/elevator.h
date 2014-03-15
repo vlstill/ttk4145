@@ -77,6 +77,8 @@ struct Elevator {
 
     static constexpr MillisecondTime _speed = 300;
     static constexpr MillisecondTime _keepAlive = 500;
+    // how long to wait before closing doors
+    static constexpr MillisecondTime _waitThreshold = 5000;
 };
 
 }
