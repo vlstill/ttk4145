@@ -1,13 +1,17 @@
 #include <climits>
-#include <elevator/elevator.h>
-#include <elevator/scheduler.h>
-#include <wibble/commandline/parser.h>
 #include <iostream>
-#include <elevator/udptools.h>
 #include <atomic>
 #include <thread>
 #include <chrono>
 #include <set>
+
+#include <wibble/commandline/parser.h>
+
+#include <elevator/elevator.h>
+#include <elevator/scheduler.h>
+#include <elevator/udptools.h>
+#include <elevator/udpqueue.h>
+
 
 namespace elevator {
 
@@ -20,6 +24,9 @@ struct Main {
     const Address commSend{ IPv4Address::any, Port{ 64123 } };
     const Address commRcv{ IPv4Address::any, Port{ 64125 } };
     const Address commBroadcast{ IPv4Address::broadcast, Port{ 64125 } };
+
+    const Port stateChangePort{ 64016 };
+    const Port commandPort{ 64017 };
 
     StandardParser opts;
     OptionGroup *execution;
@@ -144,13 +151,47 @@ struct Main {
 
         ConcurrentQueue< Command > commandsToLocalElevator;
         ConcurrentQueue< Command > commandsToOthers;
-        ConcurrentQueue< StateChange > stateChanges;
+        ConcurrentQueue< StateChange > stateChangesIn;
+        ConcurrentQueue< StateChange > stateChangesOut;
 
-        Elevator elevator{ id, heartbeatManager.getNew( 100 /* ms */ ),
-            commandsToLocalElevator, stateChanges };
-        Scheduler scheduler{ id, heartbeatManager.getNew( 500 /* ms */ ),
-            stateChanges, commandsToLocalElevator, commandsToOthers };
+        std::unique_ptr< QueueReceiver< Command > > commandsToLocalElevatorReceiver;
+        std::unique_ptr< QueueReceiver< StateChange > > stateChangesInReceiver;
+        std::unique_ptr< QueueSender< StateChange > > stateChangesOutSender;
+        std::unique_ptr< QueueSender< Command > > commandsToOthersReceiver;
 
+        if ( nodes > 1 ) {
+            commandsToOthersReceiver.reset( new QueueSender< Command >{ commSend,
+                    Address{ IPv4Address::broadcast, commandPort }, commandsToOthers } );
+            commandsToLocalElevatorReceiver.reset( new QueueReceiver< Command >{
+                    Address{ IPv4Address::any, commandPort }, commandsToLocalElevator } );
+            stateChangesInReceiver.reset( new QueueReceiver< StateChange >{
+                    Address{ IPv4Address::any, commandPort }, stateChangesIn } );
+            stateChangesOutSender.reset( new QueueSender< StateChange >{ commSend,
+                    Address{ IPv4Address::broadcast, stateChangePort }, stateChangesOut } );
+        }
+
+        /* about heartbeat lengths:
+         * - elevator loop is polling and never sleeping, therefore its scheduling
+         *   is quite relieable and it can have short heartbeat,
+         *   furthermore we need to make sure we will detect any floor change,
+         *   therefore heartbeat it must respond faster then is time to cross sensor
+         *   (approx 400ms), also note that even with heartbeat of 10ms the elevator
+         *   seems to be running reliably
+         * - scheduler again has quite tight demand, as it should be able to handle
+         *   all state changes from elevator, but we have to be more carefull here
+         *   as it is sleeping sometimes
+         */
+        Elevator elevator{ id, heartbeatManager.getNew( 50 /* ms */ ),
+            commandsToLocalElevator, stateChangesIn };
+        Scheduler scheduler{ heartbeatManager.getNew( 100 /* ms */ ),
+            stateChangesIn, stateChangesOut, commandsToOthers };
+
+        if ( nodes > 1 ) {
+            commandsToLocalElevatorReceiver->run();
+            stateChangesInReceiver->run();
+            commandsToOthersReceiver->run();
+            stateChangesOutSender->run();
+        }
         elevator.run();
         scheduler.run();
 
