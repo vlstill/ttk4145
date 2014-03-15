@@ -3,8 +3,9 @@
 
 namespace elevator {
 
-Scheduler::Scheduler( HeartBeat &hb, ConcurrentQueue< StateChange > &statUpd,
+Scheduler::Scheduler( int localId, HeartBeat &hb, ConcurrentQueue< StateChange > &statUpd,
         ConcurrentQueue< Command > &local, ConcurrentQueue< Command > &remote ) :
+    _localElevId( localId ),
     _heartbeat( hb ),
     _stateUpdateQueue( statUpd ),
     _localCommands( local ), _remoteCommands( remote ),
@@ -34,6 +35,23 @@ void Scheduler::_runLocal() {
                 << ", timestamp = " << update.state.timestamp
                 << ", changeType = " << showChange( update.changeType )
                 << ", changeFloor = " << update.changeFloor << " }" << std::endl;
+
+            if ( update.state.id == _localElevId ) {
+                // each elevator is responsible for scheduling commnads from its hardware
+                switch ( update.changeType ) {
+                    case ChangeType::None:
+                    case ChangeType::KeepAlive:
+                        continue;
+                    case ChangeType::ButtonUpPressed:
+                        _localCommands.enqueue(
+                                Command{ CommandType::CallToFloorAndGoUp, _localElevId, update.changeFloor } );
+                        break;
+                    case ChangeType::ButtonDownPressed:
+                        _localCommands.enqueue(
+                                Command{ CommandType::CallToFloorAndGoDown, _localElevId, update.changeFloor } );
+                        break;
+                }
+            }
         }
 
         _heartbeat.beat();

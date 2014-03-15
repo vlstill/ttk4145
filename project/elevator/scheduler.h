@@ -11,13 +11,14 @@
 namespace elevator {
 
 struct Scheduler {
-    Scheduler( HeartBeat &, ConcurrentQueue< StateChange > &,
+    Scheduler( int, HeartBeat &, ConcurrentQueue< StateChange > &,
             ConcurrentQueue< Command > &, ConcurrentQueue< Command > & );
     ~Scheduler();
 
     void run();
 
   private:
+    int _localElevId;
     HeartBeat &_heartbeat;
     ConcurrentQueue< StateChange > &_stateUpdateQueue;
     ConcurrentQueue< Command > &_localCommands;
