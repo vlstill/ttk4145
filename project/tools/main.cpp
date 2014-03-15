@@ -81,13 +81,13 @@ struct Main {
     void  findPeersListener( std::atomic< bool > *trmntSend ) {
         Socket rd_sock{ commRcv, true };
         //printf( "Starting Listener\n" );
-        while( !*trmntSend ) {
+        while ( !*trmntSend ) {
             Packet pack = rd_sock.recvPacketWithTimeout( 300 );
             if ( pack.size() != 0 ) {
                 //printf( "Received Packet is: %d \n", pack.get< int >() );
-                if( pack.get< int >() == peerMsg ) {
+                if ( pack.get< int >() == peerMsg ) {
                     peerAddresses.insert( pack.address().ip() );
-                    if( peerAddresses.size() == 3)
+                    if ( int( peerAddresses.size() ) == nodes )
                         *trmntSend = true;
                 }
             }
@@ -97,6 +97,7 @@ struct Main {
     void main() {
 
         if ( optNodes->boolValue() && optNodes->intValue() > 1 ) {
+            nodes = optNodes->intValue();
             std::atomic< bool > trmntSend{ false };
             std::thread findPeers( &Main::sendToPeers, this, &trmntSend );
             findPeersListener( &trmntSend );
