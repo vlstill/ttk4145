@@ -65,31 +65,39 @@ struct Main {
             exit( 0 );
     }
 
-    void sendToPeers( std::atomic< bool > *trmntSend ) {
+    // initPhase == 0 means we don't know other peers
+    // initPhase == 1 means we know but they may not know (so we must wait)
+    // initPhase == 2 means all peers know other peers
+    void sendToPeers( std::atomic< int > *initPhase ) {
         Socket snd_sock{ commSend, true };
         snd_sock.enableBroadcast();
-        while( !*trmntSend ) {
+        while( *initPhase < 2 ) {
             Packet pack( sizeof( int ) );
             pack.address() = commBroadcast;
-            pack.get< int >() = peerMsg;
+            pack.get< int >() = peerMsg + (*initPhase > 0 ? 1 : 0);
             bool sent = snd_sock.sendPacket( pack );
             assert( sent, "send failed" );
             std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
         }
     }
 
-    void  findPeersListener( std::atomic< bool > *trmntSend ) {
+    void  findPeersListener( std::atomic< int > *initPhase ) {
         Socket rd_sock{ commRcv, true };
-        //printf( "Starting Listener\n" );
-        while ( !*trmntSend ) {
+        std::set< IPv4Address > barrier;
+
+        while ( *initPhase < 2 ) {
             Packet pack = rd_sock.recvPacketWithTimeout( 300 );
             if ( pack.size() != 0 ) {
-                //printf( "Received Packet is: %d \n", pack.get< int >() );
                 if ( pack.get< int >() == peerMsg ) {
                     peerAddresses.insert( pack.address().ip() );
-                    if ( int( peerAddresses.size() ) == nodes )
-                        *trmntSend = true;
+                } else if ( pack.get< int >() == peerMsg + 1 ) {
+                    peerAddresses.insert( pack.address().ip() ); // it might still be that we dont know
+                    barrier.insert( pack.address().ip() );
                 }
+                if ( int( barrier.size() ) == nodes )
+                    *initPhase = 2;
+                else if ( int( peerAddresses.size() ) == nodes )
+                    *initPhase = 1;
             }
         }
     }
@@ -98,9 +106,9 @@ struct Main {
 
         if ( optNodes->boolValue() && optNodes->intValue() > 1 ) {
             nodes = optNodes->intValue();
-            std::atomic< bool > trmntSend{ false };
-            std::thread findPeers( &Main::sendToPeers, this, &trmntSend );
-            findPeersListener( &trmntSend );
+            std::atomic< int > initPhase{ 0 };
+            std::thread findPeers( &Main::sendToPeers, this, &initPhase );
+            findPeersListener( &initPhase );
             findPeers.join();
 
             auto localAddrs = IPv4Address::getMachineAddresses();
