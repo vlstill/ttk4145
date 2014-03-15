@@ -192,13 +192,4 @@ void Driver::movingOnFloor( int floorSensor ) {
     _moving = true;
 }
 
-bool Driver::alive() {
-    if ( getStopLamp() )
-        return true;
-    setStopLamp( true );
-    bool val = getStopLamp();
-    setStopLamp( false );
-    return val;
-}
-
 }

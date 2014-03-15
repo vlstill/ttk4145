@@ -57,7 +57,6 @@ void Elevator::removeTargetFloor( int floor ) {
 }
 
 void Elevator::assertConsistency() {
-    assert( _driver.alive(), "elevator hardware error" );
     assert_lt( _driver.minFloor(), _driver.maxFloor(), "invalid floor bounds" );
     assert( _elevState.direction == Direction::Up || _elevState.direction == Direction::Down
             || _elevState.direction == Direction::None, "invalid direction" );

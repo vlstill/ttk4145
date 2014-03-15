@@ -76,8 +76,6 @@ struct Driver {
     void setMotorSpeed( Direction, int );
     void movingOnFloor( int );
 
-    bool alive();
-
   private:
     void _goTo( Direction, int );
 
