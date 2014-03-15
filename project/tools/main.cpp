@@ -17,22 +17,24 @@ using namespace udp;
 
 struct Main {
 
-	const Address sendAdd{ IPv4Address::localhost, Port{ 64123 } };
-	const Address rcvAdd{ IPv4Address::localhost, Port{ 64125 } };
-	const Address brdcastAdd{ IPv4Address::broadcast, Port{ 64125 } };
+    const Address commSend{ IPv4Address::any, Port{ 64123 } };
+    const Address commRcv{ IPv4Address::any, Port{ 64125 } };
+    const Address commBroadcast{ IPv4Address::broadcast, Port{ 64125 } };
+
     StandardParser opts;
     OptionGroup *execution;
-    IntOption *nodes;
+    IntOption *optNodes;
     BoolOption *avoidRecovery;
     IntOption *elevatorId;
-	const int peerMsg = 1000;
-	std::set<IPv4Address> peerAddresses;
-	int id = INT_MIN;
+    const int peerMsg = 1000;
+    std::set< IPv4Address > peerAddresses;
+    int id = INT_MIN;
+    int nodes = 1;
 
     Main( int argc, const char **argv ) : opts( "elevator", "0.1" ) {
         // setup options
         execution = opts.createGroup( "Execution options" );
-        nodes = execution->add< IntOption >(
+        optNodes = execution->add< IntOption >(
                 "nodes", 'n', "nodes", "",
                 "specifies number of elevator nodes to expect" );
         elevatorId = execution->add< IntOption >(
@@ -63,58 +65,61 @@ struct Main {
             exit( 0 );
     }
 
-	void sendToPeers( atomic <bool> *trmntSend )
-	{
-		while( !*trmntSend ) {
-			Socket snd_sock{ sendAdd, true };
-			Packet pack( sizeof( int ) );
-			pack.address() = brdcastAdd;
-			pack.get<int>() = peerMsg;
-			snd_sock.sendPacket( pack );
-			std::this_thread::sleep_for( std::chrono::seconds( 0.5 ) );
-		}
-	}
+    void sendToPeers( std::atomic< bool > *trmntSend ) {
+        Socket snd_sock{ commSend, true };
+        snd_sock.enableBroadcast();
+        while( !*trmntSend ) {
+            Packet pack( sizeof( int ) );
+            pack.address() = commBroadcast;
+            pack.get< int >() = peerMsg;
+            bool sent = snd_sock.sendPacket( pack );
+            assert( sent, "send failed" );
+            std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
+        }
+    }
 
-	void  findPeersListener()
-	{
-		Socket rd_sock{ rcvAdd, true };
-		//printf( "Starting Listener\n" );
-		while( true ) {
-			Packet pack = rd_sock.recvPacketWithTimeout( 300 );
-            if ( pack.size() != 0 )
-			{
-				//printf( "Received Packet is: %d \n", pack.get< int >() );
-				if( pack.get< int >() == peerMsg )
-				{
-					peerAddresses.insert( pack.address() );
-					if( peerAddresses.size() == 3)
-						trmntSend = true;
-				}
-			}
-		}
-	}
+    void  findPeersListener( std::atomic< bool > *trmntSend ) {
+        Socket rd_sock{ commRcv, true };
+        //printf( "Starting Listener\n" );
+        while( !*trmntSend ) {
+            Packet pack = rd_sock.recvPacketWithTimeout( 300 );
+            if ( pack.size() != 0 ) {
+                //printf( "Received Packet is: %d \n", pack.get< int >() );
+                if( pack.get< int >() == peerMsg ) {
+                    peerAddresses.insert( pack.address().ip() );
+                    if( peerAddresses.size() == 3)
+                        *trmntSend = true;
+                }
+            }
+        }
+    }
 
     void main() {
-        
-		std::atomic<bool> trmntSend (false);
-		std::thread findPeers(sendToPeers, this, &trmntSend);
-		findPeersListener();
-		findPeers.join();
 
-		Socket m_sock{ sendAdd, true }
-		
-		int i = 0;
-		for( auto address : peerAddresses )
-		{
-			Packet pack;
-			pack.address() = brdcastAdd;
-			pack.get<int>() = i;
-			i++;
-		}
+        if ( optNodes->boolValue() && optNodes->intValue() > 1 ) {
+            std::atomic< bool > trmntSend{ false };
+            std::thread findPeers( &Main::sendToPeers, this, &trmntSend );
+            findPeersListener( &trmntSend );
+            findPeers.join();
+
+            auto localAddrs = IPv4Address::getMachineAddresses();
+            int i = 0;
+            // the set is sorted (guaranteed by C++) and same on all elevators
+            for ( auto addr : peerAddresses ) {
+                if ( localAddrs.find( addr ) != localAddrs.end() ) {
+                    id = i;
+                    break;
+                }
+                ++i;
+            }
+            assert_leq( 0, id, "Could not assing ID" );
+            std::cout << "detected id " << id << std::endl;
+        } else {
+            id = 0;
+        }
+
         if ( elevatorId->boolValue() ) {
             id = elevatorId->intValue();
-        } else {
-            // TODO
         }
 
         if ( avoidRecovery->boolValue() ) {
@@ -125,6 +130,7 @@ struct Main {
     }
 
     void runElevator( int id ) {
+        std::cout << "starting elevator, id " << id << " of " << nodes << " elevators" << std::endl;
         HeartBeatManager heartbeatManager;
 
         ConcurrentQueue< Command > commandsToLocalElevator;
