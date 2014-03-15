@@ -13,6 +13,7 @@ namespace udp {
 
 const IPv4Address IPv4Address::any{ 0, 0, 0, 0 };
 const IPv4Address IPv4Address::localhost{ 127, 0, 0, 1 };
+const IPv4Address IPv4Address::broadcast{ 255, 255, 255, 255 };
 
 sockaddr_in getNetAddress( Address addr ) {
     sockaddr_in netAddr;

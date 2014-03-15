@@ -44,6 +44,10 @@ struct IPv4Address {
         return a._addr != b._addr;
     }
 
+    friend bool operator<( IPv4Address a, IPv4Address b ) {
+        return a._addr < b._addr;
+    }
+
     friend std::ostream &operator<<( std::ostream &os, IPv4Address addr ) {
         auto arr = addr.asArray();
         os << int( arr[ 0 ] ) << "." << int( arr[ 1 ] ) << "."
@@ -53,6 +57,7 @@ struct IPv4Address {
 
     static const IPv4Address localhost;
     static const IPv4Address any;
+    static const IPv4Address broadcast;
 
   private:
     uint32_t _addr;
@@ -68,6 +73,7 @@ struct Port {
 
     friend bool operator==( Port a, Port b ) { return a._port == b._port; }
     friend bool operator!=( Port a, Port b ) { return a._port != b._port; }
+    friend bool operator<( Port a, Port b ) { return a._port < b._port; }
 
     friend std::ostream &operator<<( std::ostream &os, Port port ) {
         return os << port._port;
@@ -98,6 +104,12 @@ struct Address {
 
     friend bool operator!=( Address a, Address b ) {
         return a._ip != b._ip && a._port != b._port;
+    }
+
+    friend bool operator<( Address a, Address b ) {
+        return a._ip == b._ip
+            ? a._port < b._port
+            : a._ip < b._ip;
     }
 
     friend std::ostream &operator<<( std::ostream &os, Address addr ) {
