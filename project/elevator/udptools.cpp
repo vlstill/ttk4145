@@ -126,4 +126,20 @@ Packet Socket::recvPacketWithTimeout( long ms ) {
 
 Address Socket::localAddress() const { return _data->localAddress; }
 
+void setBroadcast( int broadcastPermission, int sock ) {
+    assert( broadcastPermission == 0 || broadcastPermission == 1, "invalid option" );
+    int rc = setsockopt( sock, SOL_SOCKET, SO_BROADCAST,
+            reinterpret_cast< void * >( &broadcastPermission ),
+            sizeof( broadcastPermission ) );
+    assert_eq( 0, rc, "setsockopt failed" );
+}
+
+void Socket::enableBroadcast() {
+    setBroadcast( 1, _data->fd );
+}
+
+void Socket::disableBroadcast() {
+    setBroadcast( 0, _data->fd );
+}
+
 }

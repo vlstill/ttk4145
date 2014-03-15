@@ -195,6 +195,9 @@ struct Socket {
 
     Address localAddress() const;
 
+    void enableBroadcast();
+    void disableBroadcast();
+
   private:
     /* separate private data to provide better abstraction and avoid
      * including messy linux headers with too much macros into our

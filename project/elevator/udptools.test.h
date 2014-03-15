@@ -23,6 +23,12 @@ struct TestUdp {
         udp::Socket sock{ udp::Address{}, true }; // enable socket reuse
     }
 
+    Test setBcast() {
+        udp::Socket sock{ udp::Address{}, true }; // enable socket reuse
+        sock.enableBroadcast();
+        sock.disableBroadcast();
+    }
+
     Test send() {
         udp::Address target{ udp::IPv4Address::localhost, udp::Port{ 64123 } };
         udp::Packet packet{ "Test", 5 };
