@@ -8,8 +8,6 @@
  * uses user defined indices (those that are on hardware), not zero based
  * can handle up to 64 floors
  *
- * The base class is templated to allow atomic sets, see bottom of source
- *
  * The type is serializable, but does not provide type tag,
  * so it can be serialized only as part of tagged type
  */
@@ -19,10 +17,9 @@
 
 namespace elevator {
 
-template< typename Base >
-struct _FloorSet {
-    _FloorSet() : _floors( 0 ) { }
-    explicit _FloorSet( std::tuple< uint64_t > t ) : _floors( std::get< 0 >( t ) ) { }
+struct FloorSet {
+    FloorSet() : _floors( 0 ) { }
+    explicit FloorSet( std::tuple< uint64_t > t ) : _floors( std::get< 0 >( t ) ) { }
     std::tuple< uint64_t > tuple() const { return std::make_tuple( _floors ); }
 
     bool get( int floor, const Driver &d ) const {
@@ -30,12 +27,13 @@ struct _FloorSet {
         return _floors & (1ul << (floor - d.minFloor()));
     }
 
-    void set( bool value, int floor, const Driver &d ) {
-        _checkBounds( floor, d );
+    bool set( bool value, int floor, const Driver &d ) {
+        bool orig = get( floor, d );
         if ( value )
             _floors |= 1ul << (floor - d.minFloor());
         else
             _floors &= ~(1ul << (floor - d.minFloor()));
+        return orig;
     }
 
     bool anyHigher( int floor, const Driver &d ) const {
@@ -56,19 +54,19 @@ struct _FloorSet {
 
     bool hasAny() const { return _floors; }
 
-    static bool hasAdditional( _FloorSet a, _FloorSet b ) {
+    static bool hasAdditional( FloorSet a, FloorSet b ) {
         // calculate buttons which were pressed between a and b
         // xor means buttons which changed state, and filters only those
         // pressed now
         return (a._floors ^ b._floors) & b._floors;
     }
 
-    _FloorSet operator|=( _FloorSet o ) {
-        return _FloorSet( _floors |= o._floors );
+    FloorSet operator|=( FloorSet o ) {
+        return FloorSet( _floors |= o._floors );
     }
 
-    friend _FloorSet operator|( _FloorSet a, _FloorSet b ) {
-        return _FloorSet( a._floors | b._floors );
+    friend FloorSet operator|( FloorSet a, FloorSet b ) {
+        return FloorSet( a._floors | b._floors );
     }
 
   private:
@@ -76,17 +74,10 @@ struct _FloorSet {
         assert_leq( d.minFloor(), floor, "out-of-bounds floor (minimun)" );
         assert_leq( floor, d.maxFloor(), "out-of-bounds floor (maximum)" );
     }
-    Base _floors;
+    uint64_t _floors;
 
-    explicit _FloorSet( uint64_t val ) : _floors( val ) { }
-
-    static_assert( std::is_same< uint64_t, Base >::value
-            || std::is_same< std::atomic< uint64_t >, Base >::value,
-            "Invalid base type, valid is only uint64_t and atomic uint64_t" );
+    explicit FloorSet( uint64_t val ) : _floors( val ) { }
 };
-
-using FloorSet = _FloorSet< uint64_t >;
-using AtomicFloorSet = _FloorSet< std::atomic< uint64_t > >;
 
 }
 
