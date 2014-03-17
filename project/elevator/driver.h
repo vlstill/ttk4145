@@ -19,7 +19,7 @@ enum class ButtonType {
 
 struct Button {
     using Tuple = std::tuple< int, int >;
-    Button() = default;
+    Button() : _type( ButtonType::CallUp ), _floor( INT_MIN ) { }
     Button( ButtonType type, int floor ) : _type( type ), _floor( floor ) { }
     Button( Tuple tuple ) : _type( ButtonType( std::get< 0 >( tuple ) ) ), _floor( std::get< 1 >( tuple ) ) { }
 
