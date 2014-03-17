@@ -35,7 +35,16 @@ struct Button {
 
 enum class Direction { None, Up, Down };
 
-struct Driver {
+struct BasicDriverInfo {
+    BasicDriverInfo( int min, int max ) : _minFloor( min ), _maxFloor( max ) { }
+    int minFloor() const { return _minFloor; }
+    int maxFloor() const { return _maxFloor; }
+  protected:
+    const int _minFloor;
+    const int _maxFloor;
+};
+
+struct Driver : BasicDriverInfo {
 
     Driver();
     ~Driver();
@@ -79,8 +88,6 @@ struct Driver {
   private:
     void _goTo( Direction, int );
 
-    const int _minFloor;
-    const int _maxFloor;
     Direction _lastDirection;
     int _lastFloor;
     bool _moving;

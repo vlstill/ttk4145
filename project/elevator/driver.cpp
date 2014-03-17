@@ -38,7 +38,7 @@ int button( Button btn ) {
     return buttonChannelMatrix[ btn.floor() - 1 ][ int( btn.type() ) ];
 }
 
-Driver::Driver() : _minFloor( 1 ), _maxFloor( 4 ),
+Driver::Driver() : BasicDriverInfo( 1, 4 ),
     // we don't know what to set yet, just plug in some sensible values
     _lastDirection( Direction::Down ), _lastFloor( 1 ), _moving( false )
 {
