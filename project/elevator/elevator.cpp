@@ -153,10 +153,8 @@ void Elevator::_emitStateChange( ChangeType type, int floor ) {
 
 void Elevator::_setButtonLampAndFlag( Button btn, bool val ) {
     _driver.setButtonLamp( btn, val );
-    FloorSet *toUpdate = nullptr;
     if ( btn.type() == ButtonType::TargetFloor )
         _elevState.insideButtons.set( val, btn.floor(), _driver );
-    assert_neq( toUpdate, nullptr, "unhandled button type" );
 }
 
 ChangeType changeTypeByButton( ButtonType btnt ) {
