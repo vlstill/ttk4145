@@ -87,7 +87,7 @@ void Scheduler::_handleButtonPress( ButtonType type, int floor ) {
 
 void Scheduler::_runLocal() {
     while ( !_terminate.load( std::memory_order::memory_order_relaxed ) ) {
-        auto maybeUpdate = _stateUpdateIn.timeoutDequeue( _heartbeat.threshold() / 2 );
+        auto maybeUpdate = _stateUpdateIn.timeoutDequeue( _heartbeat.threshold() / 10 );
         if ( !maybeUpdate.isNothing() ) {
             auto update = maybeUpdate.value();
             _globalState.update( update.state );

@@ -187,9 +187,9 @@ struct Main {
          *   all state changes from elevator, but we have to be more carefull here
          *   as it is sleeping sometimes
          */
-        Elevator elevator{ id, heartbeatManager.getNew( 50 /* ms */ ),
+        Elevator elevator{ id, heartbeatManager.getNew( 500 /* ms */ ),
             commandsToLocalElevator, stateChangesIn };
-        Scheduler scheduler{ id, heartbeatManager.getNew( 100 /* ms */ ),
+        Scheduler scheduler{ id, heartbeatManager.getNew( 1000 /* ms */ ),
             elevator.info(),
             stateChangesIn, stateChangesOut, commandsToOthers, commandsToLocalElevator };
 
