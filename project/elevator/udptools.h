@@ -17,14 +17,14 @@ namespace udp {
 struct IPv4Address {
 
     /** create address -- explicit to avoid implicit cast from int */
-    explicit IPv4Address( uint32_t addr ) : _addr( addr ) { }
+    explicit constexpr IPv4Address( uint32_t addr ) : _addr( addr ) { }
     explicit IPv4Address( std::array< uint8_t, 4 > arr ) :
         _addr( (arr[ 0 ] << 24) | (arr[ 1 ] << 16) | (arr[ 2 ] << 8) | arr[ 3 ] )
     { }
-    IPv4Address( uint8_t a, uint8_t b, uint8_t c, uint8_t d ) :
+    constexpr IPv4Address( uint8_t a, uint8_t b, uint8_t c, uint8_t d ) :
         _addr( (a << 24) | (b << 16) | (c << 8) | d )
     { }
-    IPv4Address() = default;
+    constexpr IPv4Address() : _addr( 0 ) { }
 
     /** read address */
     uint32_t asInt() const { return _addr; }
@@ -69,8 +69,8 @@ struct IPv4Address {
 /** struct for UDP port */
 struct Port {
 
-    explicit Port( uint16_t port ) : _port( port ) { }
-    Port() = default;
+    explicit constexpr Port( uint16_t port ) : _port( port ) { }
+    constexpr Port() : _port( 0 ) { }
 
     uint16_t get() const { return _port; }
 
@@ -93,10 +93,10 @@ struct Port {
  */
 struct Address {
 
-    Address( IPv4Address address, Port port ) :
+    constexpr Address( IPv4Address address, Port port ) :
         _ip( address ), _port( port )
     { }
-    Address() = default;
+    constexpr Address() { }
 
     IPv4Address ip() const { return _ip; }
     Port port() const { return _port; }
