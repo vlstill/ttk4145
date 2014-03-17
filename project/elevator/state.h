@@ -43,7 +43,7 @@ struct ElevatorState {
         downButtons( std::get< 8 >( tuple ) )
     { }
     ElevatorState() : id( INT_MIN ), timestamp( 0 ), lastFloor( INT_MIN ),
-        direction( Direction::None ), stopped( true ), doorOpen( true )
+        direction( Direction::None ), stopped( false ), doorOpen( true )
     { }
 
     Tuple tuple() const {
