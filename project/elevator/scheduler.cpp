@@ -97,7 +97,10 @@ void Scheduler::_runLocal() {
             std::cerr << "state update: { id = " << update.state.id
                 << ", timestamp = " << update.state.timestamp
                 << ", changeType = " << showChange( update.changeType )
-                << ", changeFloor = " << update.changeFloor << " }" << std::endl;
+                << ", changeFloor = " << update.changeFloor
+                << ", stopped = " << update.state.stopped
+                << ", direction = " << int( update.state.direction )
+                << " }" << std::endl;
 
             if ( update.state.id == _localElevId ) {
                 _stateUpdateOut.enqueue( update ); // propagate update
