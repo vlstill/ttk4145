@@ -38,51 +38,54 @@ void Scheduler::_forwardToTargets( Command comm ) {
         _commandsToRemote.enqueue( comm );
 }
 
-void Scheduler::_handleButtonPress( ButtonType type, int floor ) {
+void Scheduler::_handleButtonPress( int updateElId, ButtonType type, int floor ) {
     // first setup lights
     Command lights{ type == ButtonType::CallUp
                       ? CommandType::TurnOnLightUp : CommandType::TurnOnLightDown,
                     Command::ANY_ID, floor };
     _forwardToTargets( lights );
 
-    // now find optimal elevator
-    int minDistance = INT_MAX;
-    int minId = INT_MIN;
+    // each elevator schedules changes originating from it
+    if ( updateElId == _localElevId ) {
+        // now find optimal elevator
+        int minDistance = INT_MAX;
+        int minId = INT_MIN;
 
-    for ( auto &statepair : _globalState.elevators() ) {
-        const ElevatorState &state = statepair.second;
+        for ( auto &statepair : _globalState.elevators() ) {
+            const ElevatorState &state = statepair.second;
 
-        int dist = std::abs( state.lastFloor - floor );
+            int dist = std::abs( state.lastFloor - floor );
 
-        if ( state.stopped )
-            dist += 10 * (_bounds.maxFloor() - _bounds.minFloor()); // penalisation
+            if ( state.stopped )
+                dist += 10 * (_bounds.maxFloor() - _bounds.minFloor()); // penalisation
 
-        if (    ( state.direction == Direction::Up
-                        && ( (type == ButtonType::CallUp && floor > state.lastFloor )
-                            || floor == _bounds.maxFloor() ) )
-            ||
-                ( state.direction == Direction::Down
-                        && ( (type == ButtonType::CallDown && floor < state.lastFloor )
-                            || floor == _bounds.minFloor() ) )
-           )
-            dist += _bounds.maxFloor() - _bounds.minFloor() + 1; // busy penalisation
-        else
-            // as a last resort we can schedule floor even to elevator which is
-            // running in different direction
-            dist += 2 * (_bounds.maxFloor() - _bounds.minFloor() + 1); // penalisation
+            if (    ( state.direction == Direction::Up
+                            && ( (type == ButtonType::CallUp && floor > state.lastFloor )
+                                || floor == _bounds.maxFloor() ) )
+                ||
+                    ( state.direction == Direction::Down
+                            && ( (type == ButtonType::CallDown && floor < state.lastFloor )
+                                || floor == _bounds.minFloor() ) )
+               )
+                dist += _bounds.maxFloor() - _bounds.minFloor() + 1; // busy penalisation
+            else
+                // as a last resort we can schedule floor even to elevator which is
+                // running in different direction
+                dist += 2 * (_bounds.maxFloor() - _bounds.minFloor() + 1); // penalisation
 
-        if ( dist < minDistance ) {
-            minDistance = dist;
-            minId = state.id;
+            if ( dist < minDistance ) {
+                minDistance = dist;
+                minId = state.id;
+            }
         }
-    }
-    assert_leq( 0, minId, "no minimal distance found" );
+        assert_leq( 0, minId, "no minimal distance found" );
 
-    Command comm{ type == ButtonType::CallUp
-                      ? CommandType::CallToFloorAndGoUp
-                      : CommandType::CallToFloorAndGoDown,
-                  minId, floor };
-    _forwardToTargets( comm );
+        Command comm{ type == ButtonType::CallUp
+                          ? CommandType::CallToFloorAndGoUp
+                          : CommandType::CallToFloorAndGoDown,
+                      minId, floor };
+        _forwardToTargets( comm );
+    }
 }
 
 void Scheduler::_runLocal() {
@@ -98,28 +101,28 @@ void Scheduler::_runLocal() {
 
             if ( update.state.id == _localElevId ) {
                 _stateUpdateOut.enqueue( update ); // propagate update
+            }
 
-                // each elevator is responsible for scheduling commnads from its hardware
-                switch ( update.changeType ) {
-                    case ChangeType::None:
-                    case ChangeType::KeepAlive:
-                    case ChangeType::OtherChange:
-                        continue;
-                    case ChangeType::ButtonUpPressed:
-                        _handleButtonPress( ButtonType::CallUp, update.changeFloor );
-                        break;
-                    case ChangeType::ButtonDownPressed:
-                        _handleButtonPress( ButtonType::CallDown, update.changeFloor );
-                        break;
-                    case ChangeType::ServedDown:
-                        _forwardToTargets( Command{ CommandType::TurnOffLightDown,
-                                _localElevId, update.changeFloor } );
-                        break;
-                    case ChangeType::ServedUp:
-                        _forwardToTargets( Command{ CommandType::TurnOffLightUp,
-                                _localElevId, update.changeFloor } );
-                        break;
-                }
+            // each elevator is responsible for scheduling commnads from its hardware
+            switch ( update.changeType ) {
+                case ChangeType::None:
+                case ChangeType::KeepAlive:
+                case ChangeType::OtherChange:
+                    continue;
+                case ChangeType::ButtonUpPressed:
+                    _handleButtonPress( update.state.id, ButtonType::CallUp, update.changeFloor );
+                    break;
+                case ChangeType::ButtonDownPressed:
+                    _handleButtonPress( update.state.id, ButtonType::CallDown, update.changeFloor );
+                    break;
+                case ChangeType::ServedDown:
+                    _forwardToTargets( Command{ CommandType::TurnOffLightDown,
+                            _localElevId, update.changeFloor } );
+                    break;
+                case ChangeType::ServedUp:
+                    _forwardToTargets( Command{ CommandType::TurnOffLightUp,
+                            _localElevId, update.changeFloor } );
+                    break;
             }
         }
 
