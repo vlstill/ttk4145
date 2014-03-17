@@ -160,9 +160,9 @@ void Elevator::_setButtonLampAndFlag( Button btn, bool val ) {
 ChangeType changeTypeByButton( ButtonType btnt ) {
     switch ( btnt ) {
         case ButtonType::CallUp:
-            return ChangeType::ButtonDownPressed;
-        case ButtonType::CallDown:
             return ChangeType::ButtonUpPressed;
+        case ButtonType::CallDown:
+            return ChangeType::ButtonDownPressed;
         case ButtonType::TargetFloor:
             return ChangeType::InsideButtonPresed;
         default: assert_unreachable();
