@@ -3,7 +3,6 @@
 /* High level elevator API/event loop */
 
 #include <elevator/driver.h>
-#include <elevator/spinlock.h>
 #include <elevator/heartbeat.h>
 #include <elevator/concurrentqueue.h>
 #include <elevator/command.h>
@@ -11,10 +10,9 @@
 #include <elevator/floorset.h>
 
 #include <atomic>
-#include <functional>
 #include <thread>
 #include <vector>
-#include <type_traits>
+
 
 #ifndef SRC_ELEVATOR_H
 #define SRC_ELEVATOR_H
@@ -29,40 +27,30 @@ struct Elevator {
     void run();
     void terminate();
 
-    void addTargetFloor( int floor );
-    void removeTargetFloor( int floor );
-    void setMoveDirection( Direction );
-
     void assertConsistency();
 
     BasicDriverInfo info() const {
         return BasicDriverInfo( _driver );
     }
 
-    /* directly execute command on lower-level driver API
-     * - command is executed in calling thread (that is concurrently with control loop)
-     * - locking is used to ensure safety
-     * - the control loop is interruptible by dirrectCommand only at start of loop
-     * - do not run blocking or long-lasting commnads in dirrectCommand, it can cause
-     *   missing button signals or even heart-beat signal */
-    template< typename Function >
-    auto dirrectCommand( Function fn ) -> decltype( fn( std::declval< Driver& >() ) )
-    {
-        SpinLock guard( _lock );
-        return fn( _driver );
-    }
-
   private:
     void _loop();
 
     std::atomic< bool > _terminate;
-    std::atomic_flag _lock;
     ConcurrentQueue< Command > &_inCommands;
     ConcurrentQueue< StateChange > &_outState;
     Driver _driver;
     HeartBeat &_heartbeat;
     std::thread _thread;
 
+    ElevatorState _elevState;
+    Direction _previousDirection;
+    MillisecondTime _lastStateUpdate;
+
+    const std::vector< Button > _floorButtons;
+
+    void _addTargetFloor( int floor );
+    void _removeTargetFloor( int floor );
     int _updateAndGetFloor();
     void _stopElevator();
     void _startElevator();
@@ -74,12 +62,7 @@ struct Elevator {
     FloorSet _allButtons() const;
     bool _shouldStop( int ) const;
     void _clearDirectionButtonLamp();
-
-    ElevatorState _elevState;
-    Direction _lastDirection;
-    MillisecondTime _lastStateUpdate;
-
-    std::vector< Button > _floorButtons;
+    void _initializeElevator();
 
     static constexpr MillisecondTime _speed = 300;
     static constexpr MillisecondTime _keepAlive = 500;

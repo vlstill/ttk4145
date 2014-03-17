@@ -3,9 +3,20 @@
 #include <elevator/restartwrapper.h>
 #include <elevator/test.h>
 #include <wibble/raii.h>
-#include <thread>
 
 namespace elevator {
+
+std::vector< Button > genFloorButtons( const BasicDriverInfo &bi ) {
+    std::vector< Button > btns;
+    for ( int i = bi.minFloor(); i <= bi.maxFloor(); ++i ) {
+        btns.push_back( Button( ButtonType::TargetFloor, i ) );
+        if ( i < bi.maxFloor() )
+            btns.push_back( Button( ButtonType::CallUp, i ) );
+        if ( i > bi.minFloor() )
+            btns.push_back( Button( ButtonType::CallDown, i ) );
+    }
+    return btns;
+}
 
 Elevator::Elevator(
         int id,
@@ -16,25 +27,17 @@ Elevator::Elevator(
         _inCommands( inCommands ),
         _outState( outState ),
         _heartbeat( heartbeat ),
-        _lastDirection( Direction::None ),
-        _lastStateUpdate( 0 )
+        _previousDirection( Direction::None ),
+        _lastStateUpdate( 0 ),
+        _floorButtons( genFloorButtons( _driver ) )
 {
-    _lock.clear();
-    for ( int i = 0; i < 4; ++i ) {
-        _floorButtons.push_back( Button( ButtonType::TargetFloor, i + 1 ) );
-        if ( i < 3 )
-            _floorButtons.push_back( Button( ButtonType::CallUp, i + 1 ) );
-        if ( i != 0 )
-            _floorButtons.push_back( Button( ButtonType::CallDown, i + 1 ) );
-    }
     _elevState.lastFloor = _driver.minFloor();
     _elevState.id = id;
 }
+
 Elevator::~Elevator() {
-    if ( _thread.joinable() ) {
-        _terminate = true;
-        _thread.join();
-    }
+    if ( _thread.joinable() )
+        terminate();
 }
 
 void Elevator::terminate() {
@@ -47,23 +50,19 @@ void Elevator::run() {
     _thread = std::thread( restartWrapper( &Elevator::_loop ), this );
 }
 
-void Elevator::addTargetFloor( int floor ) {
+void Elevator::_addTargetFloor( int floor ) {
     _elevState.insideButtons.set( true, floor, _driver );
 }
 
-void Elevator::removeTargetFloor( int floor ) {
+void Elevator::_removeTargetFloor( int floor ) {
     _elevState.insideButtons.set( false, floor, _driver );
 }
 
 void Elevator::assertConsistency() {
     assert_lt( _driver.minFloor(), _driver.maxFloor(), "invalid floor bounds" );
-    assert( _elevState.direction == Direction::Up || _elevState.direction == Direction::Down
-            || _elevState.direction == Direction::None, "invalid direction" );
-    assert( _lastDirection == Direction::Up || _lastDirection == Direction::Down
-            || _lastDirection == Direction::None, "invalid direction" );
-    assert( _elevState.insideButtons.consistent( _driver ), "invalid floor set" );
-    assert( _elevState.upButtons.consistent( _driver ), "invalid floor set" );
-    assert( _elevState.downButtons.consistent( _driver ), "invalid floor set" );
+    assert( _previousDirection == Direction::Up || _previousDirection == Direction::Down
+            || _previousDirection == Direction::None, "invalid direction" );
+    _elevState.assertConsistency( _driver );
     assert_leq( _driver.minFloor(), _elevState.lastFloor, "last floor out of bounds" );
     assert_leq( _elevState.lastFloor, _driver.maxFloor(), "last floor out of bounds" );
 }
@@ -85,13 +84,13 @@ int Elevator::_updateAndGetFloor() {
 
 void Elevator::_stopElevator() {
     if ( _elevState.direction != Direction::None )
-        _lastDirection = _elevState.direction;
+        _previousDirection = _elevState.direction;
     _elevState.direction = Direction::None;
     _driver.stopElevator();
 }
 
 void Elevator::_startElevator() {
-    _startElevator( _lastDirection );
+    _startElevator( Direction::None );
 }
 
 void Elevator::_startElevator( Direction direction ) {
@@ -167,13 +166,13 @@ void Elevator::_setButtonLampAndFlag( Button btn, bool val ) {
 
 ChangeType changeTypeByButton( ButtonType btnt ) {
     switch ( btnt ) {
-    case ButtonType::CallUp:
-        return ChangeType::ButtonDownPressed;
-    case ButtonType::CallDown:
-        return ChangeType::ButtonUpPressed;
-    case ButtonType::TargetFloor:
-        return ChangeType::InsideButtonPresed;
-    default: assert_unreachable();
+        case ButtonType::CallUp:
+            return ChangeType::ButtonDownPressed;
+        case ButtonType::CallDown:
+            return ChangeType::ButtonUpPressed;
+        case ButtonType::TargetFloor:
+            return ChangeType::InsideButtonPresed;
+        default: assert_unreachable();
     }
 }
 
@@ -213,6 +212,20 @@ void Elevator::_clearDirectionButtonLamp() {
     _driver.setButtonLamp( b, false );
 }
 
+void Elevator::_initializeElevator() {
+    // initialize according to lights
+    for ( auto b : _floorButtons ) {
+        if ( _driver.getButtonLamp( b ) ) {
+            if ( b.type() == ButtonType::TargetFloor )
+                _addTargetFloor( b.floor() );
+            else if ( b.type() == ButtonType::CallDown )
+                _elevState.downButtons.set( true, b.floor(), _driver );
+            else if ( b.type() == ButtonType::CallUp )
+                _elevState.upButtons.set( true, b.floor(), _driver );
+        }
+    }
+}
+
 void Elevator::_loop() {
     // no matter whether exit is caused by terminate flag or exception
     // we want to stop elevator (ok, it works only for exceptions caught somewhere
@@ -220,37 +233,28 @@ void Elevator::_loop() {
     // restarting)
     auto d_stop = wibble::raii::defer( [&]() { _stopElevator(); } );
 
-    // for some buttons, we need to keep track about changes
+    // for some buttons, we need to keep track about changes, so that we
+    // can detect button press/release event no just the fact that button
+    // is now activated
     FloorSet inFloorButtons, inFloorButtonsLast;
     bool stopLast{ false }, stopNow{ false };
-    int prevFloor = INT_MIN;
-    MillisecondTime waitingStarted{ 0 };
+
+    int prevFloor{ INT_MIN }; // to keep track when to send state update
+
+    MillisecondTime doorWaitingStarted{ 0 }; // for closing doors
 
     enum class State { Normal, WaitingForInButton, Stopped };
     State state = State::Normal;
 
-    // initialize according to lights
+    _initializeElevator();
     if ( _driver.getStopLamp() )
         state = State::Stopped;
-    for ( auto b : _floorButtons ) {
-        if ( _driver.getButtonLamp( b ) ) {
-            if ( b.type() == ButtonType::TargetFloor )
-                addTargetFloor( b.floor() );
-            else if ( b.type() == ButtonType::CallDown )
-                _elevState.downButtons.set( true, b.floor(), _driver );
-            else if ( b.type() == ButtonType::CallUp )
-                _elevState.upButtons.set( true, b.floor(), _driver );
-        }
-    }
 
     while ( !_terminate.load( std::memory_order::memory_order_relaxed ) ) {
         // initialize cycle
         inFloorButtonsLast = inFloorButtons;
         inFloorButtons.reset();
         stopLast = stopNow;
-
-        // whole loop body is locked to prevent concurrent run with dirrectCommand
-        SpinLock guard( _lock );
 
         assertConsistency();
 
@@ -259,53 +263,53 @@ void Elevator::_loop() {
             if ( _driver.getButtonSignal( b ) ) {
                 if ( !_driver.getButtonLamp( b ) ) { // new press
                     _setButtonLampAndFlag( b, true );
-                    if ( b.type() == ButtonType::TargetFloor )
+                    if ( b.type() == ButtonType::TargetFloor ) {
                         // we need to serve this one on this elevator
-                        addTargetFloor( b.floor() );
+                        _addTargetFloor( b.floor() );
+                    }
                     _emitStateChange( changeTypeByButton( b.type() ), b.floor() );
                 }
                 // furthermore we need to keep track of pressed inside buttons
                 // regardless if they were already lit, this is for the purpose
                 // of detection re-pressing inside button to get elevator moving
                 // after entering
-                if ( b.type() == ButtonType::TargetFloor )
+                if ( b.type() == ButtonType::TargetFloor ) {
                     inFloorButtons.set( true, b.floor(), _driver );
+                }
             }
         }
+
         if ( (stopNow = _driver.getStop()) && stopNow != stopLast ) {
-            bool stopValue = !_driver.getStopLamp();
-            _driver.setStopLamp( stopValue );
+            _elevState.stopped = !_driver.getStopLamp();
+            _driver.setStopLamp( _elevState.stopped );
 
             /* stop button will (surprise) stop the elevator right where it is
              * movement is resumed once button is presses again */
-            if ( stopValue ) {
+            if ( _elevState.stopped ) {
                 _stopElevator();
                 state = State::Stopped;
-                _elevState.stopped = true;
                 _emitStateChange( ChangeType::OtherChange, _updateAndGetFloor() );
             } else {
+                _startElevator( _previousDirection );
                 state = State::Normal;
-                _startElevator();
-                _driver.setDoorOpenLamp( false );
-                _elevState.stopped = false;
                 _emitStateChange( ChangeType::OtherChange, _updateAndGetFloor() );
             }
         }
+
         if ( _driver.getObstruction() ) {
-            _stopElevator();
-            for ( auto b : _floorButtons )
-                _driver.setButtonLamp( b, false );
-            _driver.setStopLamp( false );
-            _driver.setDoorOpenLamp( false );
+            _driver.shutdown();
             while ( _driver.getObstruction() ) {
                 /* obstruction causes infinite loop which it turn causes
                  * heartbeat timeout and terminates whole process */
             }
         }
+
+        // must be nonblocking
         auto maybeCommand = _inCommands.tryDequeue();
         if ( !maybeCommand.isNothing() ) {
             auto command = maybeCommand.value();
-            assert_eq( command.targetElevatorId, _elevState.id, "command to other elevator" );
+            assert( command.targetElevatorId == _elevState.id
+                    || command.targetElevatorId == Command::ANY_ID, "command to other elevator" );
             switch ( command.commandType ) {
             case CommandType::Empty:
                 break;
@@ -359,17 +363,17 @@ void Elevator::_loop() {
                 // open doors
                 _driver.setDoorOpenLamp( true );
                 state = State::WaitingForInButton;
-                waitingStarted = now();
+                doorWaitingStarted = now();
                 _stopElevator();
                 // this floor is served
-                removeTargetFloor( currentFloor );
+                _removeTargetFloor( currentFloor );
                 _emitStateChange( ChangeType::Served, currentFloor );
             } else if ( _elevState.direction == Direction::None && _allButtons().hasAny() ) {
                 // we are not moving but we can
-                if ( _priorityFloorsInDirection( _lastDirection ) )
-                    _startElevator( _lastDirection );
+                if ( _priorityFloorsInDirection( _previousDirection ) )
+                    _startElevator( _previousDirection );
                 else
-                    _startElevator( Direction::None ); // decides which direction is better itself
+                    _startElevator(); // decides which direction is better itself
 
                 _emitStateChange( ChangeType::OtherChange, currentFloor );
                 _clearDirectionButtonLamp();
@@ -377,7 +381,7 @@ void Elevator::_loop() {
 
         } else if ( state == State::WaitingForInButton ) {
             if ( FloorSet::hasAdditional( inFloorButtonsLast, inFloorButtons )
-                    || (waitingStarted + _waitThreshold) < now() )
+                    || (doorWaitingStarted + _waitThreshold) < now() )
             {
                 _driver.setDoorOpenLamp( false );
                 state = State::Normal;
