@@ -165,7 +165,7 @@ struct Main {
                 } );
 
             stateChangesInReceiver.reset( new QueueReceiver< StateChange >{
-                    Address{ IPv4Address::any, commandPort },
+                    Address{ IPv4Address::any, stateChangePort },
                     stateChangesIn
                 } );
 
