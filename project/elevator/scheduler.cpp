@@ -111,6 +111,14 @@ void Scheduler::_runLocal() {
                     case ChangeType::ButtonDownPressed:
                         _handleButtonPress( ButtonType::CallDown, update.changeFloor );
                         break;
+                    case ChangeType::ServedDown:
+                        _forwardToTargets( Command{ CommandType::TurnOffLightDown,
+                                _localElevId, update.changeFloor } );
+                        break;
+                    case ChangeType::ServedUp:
+                        _forwardToTargets( Command{ CommandType::TurnOffLightUp,
+                                _localElevId, update.changeFloor } );
+                        break;
                 }
             }
         }

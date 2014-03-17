@@ -391,6 +391,8 @@ void Elevator::_loop() {
                     _elevState.upButtons.set( false, currentFloor, _driver );
                     _driver.setButtonLamp( Button{ ButtonType::CallUp, currentFloor }, false );
                     _driver.setButtonLamp( Button{ ButtonType::CallDown, currentFloor }, false );
+                    _emitStateChange( ChangeType::ServedUp, currentFloor );
+                    _emitStateChange( ChangeType::ServedDown, currentFloor );
                 }
             }
         } else if ( state == State::Stopped ) {
