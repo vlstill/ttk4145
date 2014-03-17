@@ -192,8 +192,10 @@ void Elevator::_clearDirectionButtonLamp() {
         b = Button{ ButtonType::CallDown, _driver.maxFloor() };
     else if ( _elevState.lastFloor == _driver.minFloor() )
         b = Button{ ButtonType::CallUp, _driver.minFloor() };
-    else
+    else if ( _elevState.direction != Direction::None )
         b = buttonByDirection( _elevState.direction, _elevState.lastFloor );
+    else
+        return; // no change requred
 
     if ( b.type() == ButtonType::CallUp ) {
         if ( _elevState.upButtons.set( false, b.floor(), _driver ) )
