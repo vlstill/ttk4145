@@ -94,11 +94,34 @@ struct StateChange {
 
 struct GlobalState {
     void update( ElevatorState state ) {
+        Guard g{ _lock };
         _elevators[ state.id ] = state;
-        updateButtons();
+        updateButtons( g );
     }
 
-    void updateButtons() {
+    FloorSet upButtons() const { return _upButtons; }
+    FloorSet downButtons() const { return _downButtons; }
+    const std::unordered_map< int, ElevatorState > &elevators() const {
+        Guard g{ _lock };
+        return _elevators;
+    }
+
+    void assertConsistency( const BasicDriverInfo &bi ) const {
+        Guard g{ _lock };
+        assert( _upButtons.consistent( bi ), "consistency check failed" );
+        assert( _upButtons.consistent( bi ), "consistency check failed" );
+        for ( auto &e : _elevators )
+            e.second.assertConsistency( bi );
+    }
+
+  private:
+    using Guard = std::unique_lock< std::mutex >;
+    mutable std::mutex _lock;
+    FloorSet _upButtons;
+    FloorSet _downButtons;
+    std::unordered_map< int, ElevatorState > _elevators;
+
+    void updateButtons( Guard & ) {
         _upButtons.reset();
         _downButtons.reset();
         for ( const auto &el : _elevators ) {
@@ -107,23 +130,6 @@ struct GlobalState {
         }
     }
 
-    FloorSet upButtons() const { return _upButtons; }
-    FloorSet downButtons() const { return _downButtons; }
-    const std::unordered_map< int, ElevatorState > &elevators() const {
-        return _elevators;
-    }
-
-    void assertConsistency( const BasicDriverInfo &bi ) const {
-        assert( _upButtons.consistent( bi ), "consistency check failed" );
-        assert( _upButtons.consistent( bi ), "consistency check failed" );
-        for ( auto &e : _elevators )
-            e.second.assertConsistency( bi );
-    }
-
-  private:
-    FloorSet _upButtons;
-    FloorSet _downButtons;
-    std::unordered_map< int, ElevatorState > _elevators;
 };
 
 }
