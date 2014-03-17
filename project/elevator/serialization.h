@@ -23,7 +23,11 @@ enum class TypeSignature {
     TestType,
 
     ElevatorCommand,
-    ElevatorState
+    ElevatorState,
+
+    InitialPacket,
+    ElevatorReady,
+    RecoveryState
 };
 
 template< typename T >
@@ -98,6 +102,10 @@ struct Serializer {
         std::copy( serial.rawData(), serial.rawData() + serial.size(),
                 packet.data() + packet_data_offset );
         return packet;
+    }
+
+    static TypeSignature packetType( const udp::Packet &packet ) {
+        return packet.get< TypeSignature >();
     }
 
     template< typename What >
