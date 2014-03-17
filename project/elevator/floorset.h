@@ -22,12 +22,12 @@ struct FloorSet {
     explicit FloorSet( std::tuple< uint64_t > t ) : _floors( std::get< 0 >( t ) ) { }
     std::tuple< uint64_t > tuple() const { return std::make_tuple( _floors ); }
 
-    bool get( int floor, const Driver &d ) const {
+    bool get( int floor, const BasicDriverInfo &d ) const {
         _checkBounds( floor, d );
         return _floors & (1ul << (floor - d.minFloor()));
     }
 
-    bool set( bool value, int floor, const Driver &d ) {
+    bool set( bool value, int floor, const BasicDriverInfo &d ) {
         bool orig = get( floor, d );
         if ( value )
             _floors |= 1ul << (floor - d.minFloor());
@@ -36,17 +36,17 @@ struct FloorSet {
         return orig;
     }
 
-    bool anyHigher( int floor, const Driver &d ) const {
+    bool anyHigher( int floor, const BasicDriverInfo &d ) const {
         _checkBounds( floor, d );
         return _floors & ( ~((1ul << (floor - d.minFloor())) - 1) << 1);
     }
 
-    bool anyLower( int floor, const Driver &d ) const {
+    bool anyLower( int floor, const BasicDriverInfo &d ) const {
         _checkBounds( floor, d );
         return _floors & ((1ul << (floor - d.minFloor())) - 1);
     }
 
-    bool consistent( const Driver &d ) const {
+    bool consistent( const BasicDriverInfo &d ) const {
         return !anyHigher( d.maxFloor(), d );
     }
 
@@ -70,7 +70,7 @@ struct FloorSet {
     }
 
   private:
-    static void _checkBounds( int floor, const Driver &d ) {
+    static void _checkBounds( int floor, const BasicDriverInfo &d ) {
         assert_leq( d.minFloor(), floor, "out-of-bounds floor (minimun)" );
         assert_leq( floor, d.maxFloor(), "out-of-bounds floor (maximum)" );
     }
