@@ -166,7 +166,8 @@ struct Main {
 
             stateChangesInReceiver.reset( new QueueReceiver< StateChange >{
                     Address{ IPv4Address::any, stateChangePort },
-                    stateChangesIn
+                    stateChangesIn,
+                    [id]( const StateChange &chan ) { return chan.state.id != id; }
                 } );
 
             stateChangesOutSender.reset( new QueueSender< StateChange >{
