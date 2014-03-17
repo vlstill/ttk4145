@@ -361,23 +361,31 @@ void Elevator::_loop() {
                 // this floor is served
                 _removeTargetFloor( currentFloor );
                 _emitStateChange( ChangeType::Served, currentFloor );
-            } else if ( _elevState.direction == Direction::None && _allButtons().hasAny() ) {
-                // we are not moving but we can
-                if ( _priorityFloorsInDirection( _previousDirection ) )
-                    _startElevator( _previousDirection );
-                else
-                    _startElevator(); // decides which direction is better itself
+            } else if ( _elevState.direction == Direction::None ) {
+                if ( _allButtons().hasAny() ) {
+                    // we are not moving but we can
+                    if ( _priorityFloorsInDirection( _previousDirection ) )
+                        _startElevator( _previousDirection );
+                    else
+                        _startElevator(); // decides which direction is better itself
 
-                _emitStateChange( ChangeType::OtherChange, currentFloor );
+                    _emitStateChange( ChangeType::OtherChange, currentFloor );
+                }
                 _clearDirectionButtonLamp();
             }
 
         } else if ( state == State::WaitingForInButton ) {
-            if ( FloorSet::hasAdditional( inFloorButtonsLast, inFloorButtons )
-                    || (doorWaitingStarted + _waitThreshold) < now() )
+            bool timeout = (doorWaitingStarted + _waitThreshold) < now();
+            if ( FloorSet::hasAdditional( inFloorButtonsLast, inFloorButtons ) || timeout )
             {
                 _driver.setDoorOpenLamp( false );
                 state = State::Normal;
+                if ( timeout ) {
+                    _elevState.downButtons.set( false, currentFloor, _driver );
+                    _elevState.upButtons.set( false, currentFloor, _driver );
+                    _driver.setButtonLamp( Button{ ButtonType::CallUp, currentFloor }, false );
+                    _driver.setButtonLamp( Button{ ButtonType::CallDown, currentFloor }, false );
+                }
             }
         } else if ( state == State::Stopped ) {
             // nothing to do
