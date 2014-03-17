@@ -11,8 +11,11 @@
 namespace elevator {
 
 struct Scheduler {
-    Scheduler( int, HeartBeat &, ConcurrentQueue< StateChange > &,
-            ConcurrentQueue< Command > &, ConcurrentQueue< Command > & );
+    Scheduler( int, HeartBeat &, BasicDriverInfo info,
+            ConcurrentQueue< StateChange > &,
+            ConcurrentQueue< StateChange > &,
+            ConcurrentQueue< Command > &,
+            ConcurrentQueue< Command > & );
     ~Scheduler();
 
     void run();
@@ -20,14 +23,18 @@ struct Scheduler {
   private:
     int _localElevId;
     HeartBeat &_heartbeat;
-    ConcurrentQueue< StateChange > &_stateUpdateQueue;
-    ConcurrentQueue< Command > &_localCommands;
-    ConcurrentQueue< Command > &_remoteCommands;
+    BasicDriverInfo _bounds;
+    ConcurrentQueue< StateChange > &_stateUpdateIn;
+    ConcurrentQueue< StateChange > &_stateUpdateOut;
+    ConcurrentQueue< Command > &_commandsToRemote;
+    ConcurrentQueue< Command > &_commandsToLocal;
     GlobalState _globalState;
     std::thread _thr;
     std::atomic< bool > _terminate;
 
     void _runLocal();
+
+    void _handleButtonPress( ButtonType, int );
 };
 
 }

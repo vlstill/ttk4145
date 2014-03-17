@@ -35,6 +35,13 @@ struct QueueReceiver {
     {
         _sock.enableBroadcast();
     }
+
+    QueueReceiver( udp::Address bindAddr, ConcurrentQueue< T > &queue,
+            std::function< bool( const T & ) > predicate ) :
+        _sock( bindAddr, true ), _queue( queue ), _pred( predicate )
+    {
+        _sock.enableBroadcast();
+    }
     void run() {
         _thr = std::thread( restartWrapper( &QueueReceiver::_runLocal ), this );
     }
@@ -44,6 +51,7 @@ struct QueueReceiver {
     udp::Socket _sock;
     ConcurrentQueue< T > &_queue;
     std::thread _thr;
+    std::function< bool( const T & ) > _pred;
 };
 
 template< typename T >
@@ -64,7 +72,8 @@ void QueueReceiver< T >::_runLocal() {
             continue; // ignore local feedback
         auto mx = serialization::Serializer::fromPacket< T >( pack );
         assert( !mx.isNothing(), "Received invalid message" );
-        _queue.enqueue( mx.value() );
+        if ( !_pred || _pred( mx.value() ) )
+            _queue.enqueue( mx.value() );
     }
 }
 

@@ -35,6 +35,10 @@ struct Elevator {
 
     void assertConsistency();
 
+    BasicDriverInfo info() const {
+        return BasicDriverInfo( _driver );
+    }
+
     /* directly execute command on lower-level driver API
      * - command is executed in calling thread (that is concurrently with control loop)
      * - locking is used to ensure safety
@@ -63,11 +67,13 @@ struct Elevator {
     void _stopElevator();
     void _startElevator();
     void _startElevator( Direction );
-    void _setButtonLamp( Button, bool );
+    void _setButtonLampAndFlag( Button, bool );
     Direction _optimalDirection() const;
     bool _priorityFloorsInDirection( Direction ) const;
     void _emitStateChange( ChangeType, int );
     FloorSet _allButtons() const;
+    bool _shouldStop( int ) const;
+    void _clearDirectionButtonLamp();
 
     ElevatorState _elevState;
     Direction _lastDirection;

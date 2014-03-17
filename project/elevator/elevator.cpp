@@ -152,7 +152,7 @@ void Elevator::_emitStateChange( ChangeType type, int floor ) {
     _outState.enqueue( change );
 }
 
-void Elevator::_setButtonLamp( Button btn, bool val ) {
+void Elevator::_setButtonLampAndFlag( Button btn, bool val ) {
     _driver.setButtonLamp( btn, val );
     FloorSet *toUpdate = nullptr;
     if ( btn.type() == ButtonType::CallUp )
@@ -179,6 +179,38 @@ ChangeType changeTypeByButton( ButtonType btnt ) {
 
 FloorSet Elevator::_allButtons() const {
     return _elevState.insideButtons | _elevState.upButtons | _elevState.downButtons;
+}
+
+bool Elevator::_shouldStop( int currentFloor ) const {
+    /* stop if this floor was requested from inside or if we are moving
+     * in direction of pressed outside button
+     * the special case of topmost/bottommost floor need not to be
+     * handled as elevator stops there anyway
+     */
+    return   _elevState.insideButtons.get( currentFloor, _driver )
+        || ( _elevState.direction == Direction::Up
+                && _elevState.upButtons.get( currentFloor, _driver ) )
+        || ( _elevState.direction == Direction::Down
+                && _elevState.downButtons.get( currentFloor, _driver ) );
+}
+
+void Elevator::_clearDirectionButtonLamp() {
+    Button b;
+    if ( _elevState.lastFloor == _driver.maxFloor() )
+        b = Button{ ButtonType::CallDown, _driver.maxFloor() };
+    else if ( _elevState.lastFloor == _driver.minFloor() )
+        b = Button{ ButtonType::CallUp, _driver.minFloor() };
+    else
+        b = buttonByDirection( _elevState.direction, _elevState.lastFloor );
+
+    if ( b.type() == ButtonType::CallUp ) {
+        if ( _elevState.upButtons.set( false, b.floor(), _driver ) )
+            _emitStateChange( ChangeType::ServedUp, b.floor() );
+    } else {
+        if ( _elevState.downButtons.set( false, b.floor(), _driver ) )
+            _emitStateChange( ChangeType::ServedDown, b.floor() );
+    }
+    _driver.setButtonLamp( b, false );
 }
 
 void Elevator::_loop() {
@@ -226,7 +258,7 @@ void Elevator::_loop() {
         for ( auto b : _floorButtons ) {
             if ( _driver.getButtonSignal( b ) ) {
                 if ( !_driver.getButtonLamp( b ) ) { // new press
-                    _setButtonLamp( b, true );
+                    _setButtonLampAndFlag( b, true );
                     if ( b.type() == ButtonType::TargetFloor )
                         // we need to serve this one on this elevator
                         addTargetFloor( b.floor() );
@@ -249,12 +281,14 @@ void Elevator::_loop() {
             if ( stopValue ) {
                 _stopElevator();
                 state = State::Stopped;
-                _emitStateChange( ChangeType::Stopped, _updateAndGetFloor() );
+                _elevState.stopped = true;
+                _emitStateChange( ChangeType::OtherChange, _updateAndGetFloor() );
             } else {
                 state = State::Normal;
                 _startElevator();
                 _driver.setDoorOpenLamp( false );
-                _emitStateChange( ChangeType::Resumed, _updateAndGetFloor() );
+                _elevState.stopped = false;
+                _emitStateChange( ChangeType::OtherChange, _updateAndGetFloor() );
             }
         }
         if ( _driver.getObstruction() ) {
@@ -271,15 +305,30 @@ void Elevator::_loop() {
         auto maybeCommand = _inCommands.tryDequeue();
         if ( !maybeCommand.isNothing() ) {
             auto command = maybeCommand.value();
+            assert_eq( command.targetElevatorId, _elevState.id, "command to other elevator" );
             switch ( command.commandType ) {
-                case CommandType::Empty:
-                    break;
-                case CommandType::CallToFloorAndGoUp:
-                case CommandType::CallToFloorAndGoDown:
-                    addTargetFloor( command.targetFloor );
-                    break;
-                case CommandType::ParkAndExit:
-                    assert_unimplemented();
+            case CommandType::Empty:
+                break;
+            case CommandType::CallToFloorAndGoUp:
+                _elevState.upButtons.set( true, command.targetFloor, _driver );
+                _driver.setButtonLamp( Button{ ButtonType::CallUp, command.targetFloor }, true );
+                break;
+            case CommandType::CallToFloorAndGoDown:
+                _elevState.downButtons.set( true, command.targetFloor, _driver );
+                _driver.setButtonLamp( Button{ ButtonType::CallDown, command.targetFloor }, true );
+                break;
+            case CommandType::TurnOnLightUp:
+                _driver.setButtonLamp( Button{ ButtonType::CallUp, command.targetFloor }, true );
+                break;
+            case CommandType::TurnOffLightUp:
+                _driver.setButtonLamp( Button{ ButtonType::CallUp, command.targetFloor }, false );
+                break;
+            case CommandType::TurnOnLightDown:
+                _driver.setButtonLamp( Button{ ButtonType::CallDown, command.targetFloor }, true );
+                break;
+            case CommandType::TurnOffLightDown:
+                _driver.setButtonLamp( Button{ ButtonType::CallDown, command.targetFloor }, false );
+                break;
             }
         }
 
@@ -294,7 +343,7 @@ void Elevator::_loop() {
             _driver.setFloorIndicator( currentFloor );
 
         if ( currentFloor != prevFloor )
-            _emitStateChange( ChangeType::OnFloor, currentFloor );
+            _emitStateChange( ChangeType::OtherChange, currentFloor );
 
         // note: we are here working wich _floorsToServe shared atomic variable
         // it can change between subsequent loads, but only this thread
@@ -304,17 +353,15 @@ void Elevator::_loop() {
         if ( state == State::Normal ) {
 
             // check if we arrived at any floor which was scheduled for us
-            if ( currentFloor != INT_MIN && _elevState.insideButtons.get( currentFloor, _driver ) ) {
+            if ( currentFloor != INT_MIN && _shouldStop( currentFloor ) ) {
                 // turn off button lights
-                _setButtonLamp( Button( ButtonType::TargetFloor, currentFloor ), false );
-                if ( _elevState.direction != Direction::None )
-                    _setButtonLamp( buttonByDirection( _elevState.direction, currentFloor ), false );
+                _setButtonLampAndFlag( Button( ButtonType::TargetFloor, currentFloor ), false );
                 // open doors
                 _driver.setDoorOpenLamp( true );
                 state = State::WaitingForInButton;
                 waitingStarted = now();
                 _stopElevator();
-                // this floor is served (??)
+                // this floor is served
                 removeTargetFloor( currentFloor );
                 _emitStateChange( ChangeType::Served, currentFloor );
             } else if ( _elevState.direction == Direction::None && _allButtons().hasAny() ) {
@@ -324,9 +371,8 @@ void Elevator::_loop() {
                 else
                     _startElevator( Direction::None ); // decides which direction is better itself
 
-                _emitStateChange( _elevState.direction == Direction::Down
-                        ? ChangeType::GoingToServeDown : ChangeType::GoingToServeUp,
-                        currentFloor );
+                _emitStateChange( ChangeType::OtherChange, currentFloor );
+                _clearDirectionButtonLamp();
             }
 
         } else if ( state == State::WaitingForInButton ) {

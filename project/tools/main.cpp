@@ -160,14 +160,28 @@ struct Main {
         std::unique_ptr< QueueSender< Command > > commandsToOthersReceiver;
 
         if ( nodes > 1 ) {
-            commandsToOthersReceiver.reset( new QueueSender< Command >{ commSend,
-                    Address{ IPv4Address::broadcast, commandPort }, commandsToOthers } );
+            commandsToOthersReceiver.reset( new QueueSender< Command >{
+                    commSend,
+                    Address{ IPv4Address::broadcast, commandPort },
+                    commandsToOthers
+                } );
+
             commandsToLocalElevatorReceiver.reset( new QueueReceiver< Command >{
-                    Address{ IPv4Address::any, commandPort }, commandsToLocalElevator } );
+                    Address{ IPv4Address::any, commandPort },
+                    commandsToLocalElevator,
+                    [id]( const Command &comm ) { return comm.targetElevatorId == id; }
+                } );
+
             stateChangesInReceiver.reset( new QueueReceiver< StateChange >{
-                    Address{ IPv4Address::any, commandPort }, stateChangesIn } );
-            stateChangesOutSender.reset( new QueueSender< StateChange >{ commSend,
-                    Address{ IPv4Address::broadcast, stateChangePort }, stateChangesOut } );
+                    Address{ IPv4Address::any, commandPort },
+                    stateChangesIn
+                } );
+
+            stateChangesOutSender.reset( new QueueSender< StateChange >{
+                    commSend,
+                    Address{ IPv4Address::broadcast, stateChangePort },
+                    stateChangesOut
+                } );
         }
 
         /* about heartbeat lengths:
@@ -183,8 +197,9 @@ struct Main {
          */
         Elevator elevator{ id, heartbeatManager.getNew( 50 /* ms */ ),
             commandsToLocalElevator, stateChangesIn };
-        Scheduler scheduler{ heartbeatManager.getNew( 100 /* ms */ ),
-            stateChangesIn, stateChangesOut, commandsToOthers };
+        Scheduler scheduler{ id, heartbeatManager.getNew( 100 /* ms */ ),
+            elevator.info(),
+            stateChangesIn, stateChangesOut, commandsToOthers, commandsToLocalElevator };
 
         if ( nodes > 1 ) {
             commandsToLocalElevatorReceiver->run();
@@ -199,6 +214,8 @@ struct Main {
         // it something fails to start in this time heartbeat will
         // fail and process will be terminated
         std::this_thread::sleep_for( std::chrono::seconds( 2 ) );
+        // heartbeat failure will throw an exception which will terminate
+        // process (as it is not catched)
         heartbeatManager.runInThisThread();
     }
 };
