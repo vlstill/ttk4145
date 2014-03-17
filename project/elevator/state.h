@@ -50,6 +50,16 @@ struct ElevatorState {
                 stopped, doorOpen, insideButtons, upButtons, downButtons );
     }
 
+    void assertConsistency( const BasicDriverInfo &bi ) const {
+        assert_leq( 0, id, "invalid elevator id" );
+        assert( insideButtons.consistent( bi ), "invalid floor set" );
+        assert( upButtons.consistent( bi ), "invalid floor set" );
+        assert( downButtons.consistent( bi ), "invalid floor set" );
+        assert_leq( bi.minFloor(), lastFloor, "invalid lastFloor" );
+        assert( direction == Direction::Up || direction == Direction::Down
+            || direction == Direction::None, "invalid direction" );
+    }
+
     int id;
     long timestamp;
     int lastFloor;
@@ -101,6 +111,13 @@ struct GlobalState {
     FloorSet downButtons() const { return _downButtons; }
     const std::unordered_map< int, ElevatorState > &elevators() const {
         return _elevators;
+    }
+
+    void assertConsistency( const BasicDriverInfo &bi ) const {
+        assert( _upButtons.consistent( bi ), "consistency check failed" );
+        assert( _upButtons.consistent( bi ), "consistency check failed" );
+        for ( auto &e : _elevators )
+            e.second.assertConsistency( bi );
     }
 
   private:
