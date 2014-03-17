@@ -97,7 +97,7 @@ void Scheduler::_runLocal() {
                 << ", changeFloor = " << update.changeFloor << " }" << std::endl;
 
             if ( update.state.id == _localElevId ) {
-                _stateUpdateOut( update ); // propagate update
+                _stateUpdateOut.enqueue( update ); // propagate update
 
                 // each elevator is responsible for scheduling commnads from its hardware
                 switch ( update.changeType ) {
