@@ -1,6 +1,7 @@
 #include <climits>
 #include <unordered_map>
 #include <tuple>
+#include <mutex>
 
 #include <elevator/driver.h>
 #include <elevator/serialization.h>
