@@ -35,6 +35,7 @@ struct Scheduler {
     void _runLocal();
 
     void _handleButtonPress( ButtonType, int );
+    void _forwardToTargets( Command );
 };
 
 }

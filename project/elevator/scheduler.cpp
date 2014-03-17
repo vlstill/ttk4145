@@ -31,12 +31,19 @@ void Scheduler::run() {
 
 const char *showChange( ChangeType );
 
+void Scheduler::_forwardToTargets( Command comm ) {
+    if ( comm.targetElevatorId == Command::ANY_ID || comm.targetElevatorId == _localElevId )
+        _commandsToLocal.enqueue( comm );
+    if ( comm.targetElevatorId != _localElevId )
+        _commandsToRemote.enqueue( comm );
+}
+
 void Scheduler::_handleButtonPress( ButtonType type, int floor ) {
     // first setup lights
     Command lights{ type == ButtonType::CallUp
                       ? CommandType::TurnOnLightUp : CommandType::TurnOnLightDown,
                     Command::ANY_ID, floor };
-    _commandsToRemote.enqueue( lights ); // (no need to send to local)
+    _forwardToTargets( lights );
 
     // now find optimal elevator
     int minDistance = INT_MAX;
@@ -75,9 +82,7 @@ void Scheduler::_handleButtonPress( ButtonType type, int floor ) {
                       ? CommandType::CallToFloorAndGoUp
                       : CommandType::CallToFloorAndGoDown,
                   minId, floor };
-    if ( minId == _localElevId )
-        _commandsToLocal.enqueue( comm );
-    _commandsToRemote.enqueue( comm );
+    _forwardToTargets( comm );
 }
 
 void Scheduler::_runLocal() {
@@ -92,10 +97,13 @@ void Scheduler::_runLocal() {
                 << ", changeFloor = " << update.changeFloor << " }" << std::endl;
 
             if ( update.state.id == _localElevId ) {
+                _stateUpdateOut( update ); // propagate update
+
                 // each elevator is responsible for scheduling commnads from its hardware
                 switch ( update.changeType ) {
                     case ChangeType::None:
                     case ChangeType::KeepAlive:
+                    case ChangeType::OtherChange:
                         continue;
                     case ChangeType::ButtonUpPressed:
                         _handleButtonPress( ButtonType::CallUp, update.changeFloor );
