@@ -32,7 +32,6 @@ struct Main {
     OptionGroup *execution;
     IntOption *optNodes;
     BoolOption *avoidRecovery;
-    IntOption *elevatorId;
     const int peerMsg = 1000;
     std::set< IPv4Address > peerAddresses;
     int id = INT_MIN;
@@ -44,9 +43,6 @@ struct Main {
         optNodes = execution->add< IntOption >(
                 "nodes", 'n', "nodes", "",
                 "specifies number of elevator nodes to expect" );
-        elevatorId = execution->add< IntOption >(
-                "elevator id", 'i', "elevator-id", "",
-                "explicitly set elevator id" );
 
         avoidRecovery = execution->add< BoolOption >(
                 "avoid recovery", 0, "avoid-recovery", "",
@@ -132,10 +128,6 @@ struct Main {
             std::cout << "detected id " << id << std::endl;
         } else {
             id = 0;
-        }
-
-        if ( elevatorId->boolValue() ) {
-            id = elevatorId->intValue();
         }
 
         if ( avoidRecovery->boolValue() ) {
