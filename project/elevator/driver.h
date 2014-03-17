@@ -69,28 +69,14 @@ struct Driver : BasicDriverInfo {
     bool getStop();
     bool getObstruction();
 
-    /* blocking move */
-    void goToFloor( int );
-    void goUpToFloor( int );
-    void goDownToFloor( int );
-    void goToBottom();
-    void goToTop();
-
     int minFloor() const { return _minFloor; }
     int maxFloor() const { return _maxFloor; }
-    Direction lastDirection() const { return _lastDirection; }
-    int lastFloor() const { return _lastFloor; }
-    bool moving() const { return _moving; }
 
     void setMotorSpeed( Direction, int );
-    void movingOnFloor( int );
+
 
   private:
-    void _goTo( Direction, int );
-
     Direction _lastDirection;
-    int _lastFloor;
-    bool _moving;
     lowlevel::IO _lio;
 };
 

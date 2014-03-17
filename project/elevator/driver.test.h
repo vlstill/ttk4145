@@ -60,44 +60,6 @@ struct TestDriver {
         driver.shutdown();
     }
 
-    Test upDown() {
-        Driver driver;
-        driver.init();
-        driver.goToTop();
-        driver.goToBottom();
-        driver.shutdown();
-    }
-
-    Test moveAround() {
-        Driver driver;
-        driver.init();
-
-        _move( driver );
-    }
-
-    Test moveAroundNoInit() {
-        Driver driver;
-        _move( driver );
-    }
-
-    void _move( Driver &driver ) {
-        auto move = [&]( int floor ) {
-            std::cout << "Moving to floor " << floor << "..." << std::flush;
-            driver.goToFloor( floor );
-            assert_eq( driver.getFloor(), floor, "Wrong floor" );
-            std::cout << "OK" << std::endl;
-        };
-
-        move( 2 );
-        move( 3 );
-        move( 2 );
-        move( 4 );
-        move( 2 );
-        move( 4 );
-        move( 3 );
-        move( 1 );
-    }
-
     Test buttons() {
         Driver driver;
         driver.init();

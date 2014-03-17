@@ -38,14 +38,8 @@ int button( Button btn ) {
     return buttonChannelMatrix[ btn.floor() - 1 ][ int( btn.type() ) ];
 }
 
-Driver::Driver() : BasicDriverInfo( 1, 4 ),
-    // we don't know what to set yet, just plug in some sensible values
-    _lastDirection( Direction::Down ), _lastFloor( 1 ), _moving( false )
-{
+Driver::Driver() : BasicDriverInfo( 1, 4 ) {
     stopElevator(); // for safety reasons
-    int sensor = getFloor();
-    if ( sensor != -1 )
-        _lastFloor = sensor;
 }
 
 /** be nicer to elevator
@@ -65,12 +59,11 @@ void Driver::init() {
 
     setStopLamp( false );
     setDoorOpenLamp( false );
-
-    goToBottom();
 }
 
 void Driver::shutdown() {
-    init(); // for now
+    stopElevator();
+    init();
 }
 
 void Driver::setButtonLamp( Button btn, bool state ) {
@@ -125,7 +118,6 @@ void Driver::setMotorSpeed( Direction direction, int speed ) {
 void Driver::stopElevator() {
     _lio.io_set_bit( MOTORDIR, _lastDirection == Direction::Up ); // reverse direction
     _lio.io_write_analog( MOTOR, 0 ); // actually stop
-    _moving = false;
 };
 
 int Driver::getFloor() {
@@ -143,53 +135,5 @@ int Driver::getFloor() {
 };
 bool Driver::getStop() { return _lio.io_read_bit( STOP );};
 bool Driver::getObstruction() { return _lio.io_read_bit( OBSTRUCTION ); };
-
-void Driver::goToFloor( int floor ) {
-    assert_leq( _minFloor, floor, "floor out of bounds" );
-    assert_leq( floor, _maxFloor, "floor out of bounds" );
-    assert( !_moving, "inconsistent state" );
-    if ( floor == _lastFloor )
-        return;
-    if ( floor < _lastFloor )
-        goDownToFloor( floor );
-    else
-        goUpToFloor( floor );
-}
-
-void Driver::goUpToFloor( int floor ) {
-    _goTo( Direction::Up, floor );
-}
-
-void Driver::goDownToFloor( int floor ) {
-    _goTo( Direction::Down, floor );
-}
-
-void Driver::goToBottom() { goDownToFloor( _minFloor ); }
-void Driver::goToTop() { goUpToFloor( _maxFloor ); }
-
-void Driver::_goTo( Direction dir, int targetFloor ) {
-    setMotorSpeed( dir, 300 );
-    int on;
-    while ( true ) {
-        on = getFloor();
-        movingOnFloor( on );
-        if ( on == targetFloor )
-            break;
-        if ( dir == Direction::Up && on == _maxFloor )
-            break;
-        if ( dir == Direction::Down && on == _minFloor )
-            break;
-    }
-    stopElevator();
-    setFloorIndicator( targetFloor );
-}
-
-void Driver::movingOnFloor( int floorSensor ) {
-    if ( floorSensor != INT_MIN ) {
-        _lastFloor = floorSensor;
-        setFloorIndicator( floorSensor );
-    }
-    _moving = true;
-}
 
 }
