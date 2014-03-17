@@ -46,6 +46,11 @@ struct FloorSet {
         return _floors & ((1ul << (floor - d.minFloor())) - 1);
     }
 
+    bool anyOther( int floor, const BasicDriverInfo &d ) const {
+        _checkBounds( floor, d );
+        return _floors & ~(1ul << (floor - d.minFloor()));
+    }
+
     bool consistent( const BasicDriverInfo &d ) const {
         return !anyHigher( d.maxFloor(), d );
     }
@@ -67,6 +72,14 @@ struct FloorSet {
 
     friend FloorSet operator|( FloorSet a, FloorSet b ) {
         return FloorSet( a._floors | b._floors );
+    }
+
+    friend bool operator==( FloorSet a, FloorSet b ) {
+        return a._floors == b._floors;
+    }
+
+    friend bool operator!=( FloorSet a, FloorSet b ) {
+        return a._floors != b._floors;
     }
 
   private:

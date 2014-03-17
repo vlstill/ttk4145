@@ -183,7 +183,10 @@ bool Elevator::_shouldStop( int currentFloor ) const {
         || ( _elevState.direction == Direction::Up
                 && _elevState.upButtons.get( currentFloor, _driver ) )
         || ( _elevState.direction == Direction::Down
-                && _elevState.downButtons.get( currentFloor, _driver ) );
+                && _elevState.downButtons.get( currentFloor, _driver ) )
+        || !_allButtons().anyOther( currentFloor, _driver )
+        || ((_allButtons() == _elevState.upButtons || _allButtons() == _elevState.downButtons)
+                && _allButtons().get( currentFloor, _driver ));
 }
 
 void Elevator::_clearDirectionButtonLamp() {
