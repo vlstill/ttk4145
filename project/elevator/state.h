@@ -19,14 +19,11 @@ enum class ChangeType {
     ButtonDownPressed,
     ButtonUpPressed,
 
-    GoingToServeDown,
-    GoingToServeUp,
-
     Served,
-    OnFloor,
+    ServedUp,
+    ServedDown,
 
-    Stopped,
-    Resumed,
+    OtherChange
 };
 
 struct ElevatorState {
@@ -102,7 +99,7 @@ struct GlobalState {
 
     FloorSet upButtons() const { return _upButtons; }
     FloorSet downButtons() const { return _downButtons; }
-    std::unordered_map< int, ElevatorState > elevators() const {
+    const std::unordered_map< int, ElevatorState > &elevators() const {
         return _elevators;
     }
 

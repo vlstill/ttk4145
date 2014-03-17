@@ -10,16 +10,23 @@ enum class CommandType {
     Empty,
     CallToFloorAndGoUp,
     CallToFloorAndGoDown,
-    ParkAndExit
+
+    TurnOnLightUp,
+    TurnOffLightUp,
+    TurnOnLightDown,
+    TurnOffLightDown,
 };
 
 struct Command {
+    static const int NO_ID = INT_MIN;
+    static const int ANY_ID = INT_MAX;
+
     CommandType commandType;
     int targetElevatorId;
     int targetFloor;
 
     Command() :
-        commandType( CommandType::Empty ), targetElevatorId( INT_MIN ), targetFloor( INT_MIN )
+        commandType( CommandType::Empty ), targetElevatorId( NO_ID ), targetFloor( NO_ID )
     { }
     Command( CommandType type, int targetElevId, int floor ) :
         commandType( type ), targetElevatorId( targetElevId ), targetFloor( floor )
