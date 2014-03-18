@@ -12,7 +12,7 @@ struct SessionManager {
     static const udp::Address commRcv;
     static const udp::Address commBroadcast;
 
-    SessionManager( GlobalState &glo ) : _state( glo ) { }
+    SessionManager( GlobalState & );
 
     /* initializes connection (blocking) with count members and then spawns
      * thread for recovery assistance if count > 1 */
@@ -25,14 +25,18 @@ struct SessionManager {
 
   private:
     GlobalState &_state;
-    std::set< udp::IPv4Address > peers;
+    std::set< udp::IPv4Address > _peers;
     int _id;
     bool _initialized;
     bool _needRecovery;
+    udp::Socket _sendSock;
+    udp::Socket _recvSock;
 
     std::thread _thr;
 
     void _loop();
+    void _initSender( std::atomic< int > * );
+    void _initListener( std::atomic< int > *, int );
 };
 
 }

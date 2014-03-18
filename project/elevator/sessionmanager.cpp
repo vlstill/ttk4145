@@ -40,11 +40,15 @@ struct RecoveryState {
     ElevatorState state;
 };
 
-void sendToPeers( std::atomic< int > *initPhase ) {
-    Socket snd_sock{ commSend, true };
-    snd_sock.enableBroadcast();
+SessionManager::SessionManager( GlobalState &glo ) : _state( glo ),
+    _sendSock{ commSend, true }, _recvSock{ commRcv, true }
+{ }
+
+void SessionManager::_initSender( std::atomic< int > *initPhase ) {
+    udp::Socket _sendSock{ commSend, true };
+    _sendSock.enableBroadcast();
     while( *initPhase < 2 ) {
-          Packet pack;
+          udp::Packet pack;
           switch ( *initPhase ) {
                 case 0: {
                     pack = Serializer::toPacket( Initial() );
@@ -54,38 +58,40 @@ void sendToPeers( std::atomic< int > *initPhase ) {
                     break; }
           }
           pack.address() = commBroadcast;
-          bool sent = snd_sock.sendPacket( pack );
+          bool sent = _sendSock.sendPacket( pack );
           assert( sent, "send failed" );
           std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
     }
 }
 
-void  findPeersListener( std::atomic< int > *initPhase, int count ) {
-    Socket rd_sock{ commRcv, true };
-    std::set< IPv4Address > barrier;
+void SessionManager::_initListener( std::atomic< int > *initPhase, int count ) {
+    udp::Socket _recvSock{ commRcv, true };
+    std::set< udp::IPv4Address > barrier;
 
     while ( *initPhase < 2 ) {
-        Packet pack = rd_sock.recvPacketWithTimeout( 300 );
+        udp::Packet pack = _recvSock.recvPacketWithTimeout( 300 );
         if ( pack.size() != 0 ) {
             switch ( Serializer::packetType( pack ) ) {
-                case TypeSignature::InitialPacket:{
-                    peers.insert( pack.address().ip() );
-                    break;}
+                case TypeSignature::InitialPacket: {
+                    _peers.insert( pack.address().ip() );
+                    break; }
                 case TypeSignature::ElevatorReady: {
-                    peers.insert( pack.address().ip() ); // it might still be that we dont know
+                    _peers.insert( pack.address().ip() ); // it might still be that we dont know
                     barrier.insert( pack.address().ip() );
-                    break;}
+                    break; }
                 case TypeSignature::RecoveryState: {
                     _needRecovery = true;
                     auto maybeRecovered = Serializer::fromPacket< RecoveryState >( pack );
                     assert( !maybeRecovered.isNothing(), "error deserializing Recovery" );
-                    RecoveryState z = maybeRecovered.value();
-                    _state.update( state );
-                    break;}
+                    RecoveryState recovered = maybeRecovered.value();
+                    _state.update( recovered.state );
+                    break; }
+                default:
+                    std::cerr << "Unknown packet received on service channel" << std::endl;
             }
             if ( int( barrier.size() ) == count )
                 *initPhase = 2;
-            else if ( int( peers.size() ) == count )
+            else if ( int( _peers.size() ) == count )
                 *initPhase = 1;
         }
     }
@@ -93,25 +99,25 @@ void  findPeersListener( std::atomic< int > *initPhase, int count ) {
 
 void SessionManager::connect( int count ) {
     // first continue sending Initial messages untill we have count peers
-    
+
     std::atomic< int > initPhase{ 0 };
-    std::thread findPeers( &Main::sendToPeers, this, &initPhase );
-    findPeersListener( &initPhase );
+    std::thread findPeers( &SessionManager::_initSender, this, &initPhase );
+    _initListener( &initPhase, count );
     findPeers.join();
 
-    auto localAddrs = IPv4Address::getMachineAddresses();
+    auto localAddrs = udp::IPv4Address::getMachineAddresses();
     int i = 0;
-    
-    // the set is sorted (guaranteed by C++) and same on all elevators
-    for ( auto addr : peers ) {
+
+    // the set is sorted (guaranteed by C++) and therefore same on all elevators
+    for ( auto addr : _peers ) {
         if ( localAddrs.find( addr ) != localAddrs.end() ) {
-            id = i;
+            _id = i;
             break;
         }
         ++i;
     }
-    assert_leq( 0, id, "Could not assing ID" );
-    std::cout << "detected id " << id << std::endl;
+    assert_leq( 0, _id, "Could not assing ID" );
+    std::cout << "detected id " << _id << std::endl;
 
     // if RecoveryState is received use it for initialization, save it
     // and save recovery flag
@@ -126,25 +132,34 @@ void SessionManager::connect( int count ) {
 }
 
 void SessionManager::_loop() {
-    Socket rd_sock{ commRcv, true };
+    udp::Socket _recvSock{ commRcv, true };
 
     while ( true ) {
-        Packet pack = rd_sock.recvPacketWithTimeout( 300 );
-        if ( pack.size() != 0 ) {
-        }
-    }
-}
+        udp::Packet pack = _recvSock.recvPacketWithTimeout( 300 );
+        if ( pack.size() != 0 && Serializer::packetType( pack ) == TypeSignature::InitialPacket ) {
+            int i = 0;
+            bool found = false;
+            for ( auto addr : _peers ) {
+                if ( addr == pack.address().ip() ) {
+                    found = true;
+                    break;
+                }
+                ++i;
+            }
+            if ( !found ) {
+                /* NOTE: we can't add unknown elevator, it would change IDs and make
+                 * mess in recovery mechanisms */
+                std::cerr << "WARNING: Attempt to socialization from unknown IP "
+                          << pack.address().ip() << ". It will be ignored." << std::endl;
+                continue;
+            }
 
-void bla() {
-    auto test = Serializer::toPacket( Initial() );
-    switch ( Serializer::packetType( test ) ) {
-        case TypeSignature::InitialPacket: {
-            auto maybeInitial = Serializer::fromPacket< Initial >( test );
-            assert( !maybeInitial.isNothing(), "error deserializing Initial" );
-            Initial x = maybeInitial.value();
-            break; }
-        case TypeSignature::ElevatorReady: {
-           break; }
+            std::cerr << "NOTICE: Sending recovery to elevator " << i << ", ("
+                      << pack.address().ip() << ")" << std::endl;
+            udp::Packet recovery = Serializer::toPacket( RecoveryState( _state.get( i ) ) );
+            recovery.address() = pack.address();
+            _sendSock.sendPacket( recovery );
+        }
     }
 }
 
