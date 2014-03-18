@@ -102,9 +102,16 @@ struct GlobalState {
 
     FloorSet upButtons() const { return _upButtons; }
     FloorSet downButtons() const { return _downButtons; }
-    const std::unordered_map< int, ElevatorState > &elevators() const {
+    std::unordered_map< int, ElevatorState > elevators() const {
         Guard g{ _lock };
         return _elevators;
+    }
+
+    ElevatorState get( int i ) const {
+        Guard g{ _lock };
+        auto it = _elevators.find( i );
+        assert_neq( it, _elevators.end(), "state not found" );
+        return it->second;
     }
 
     void assertConsistency( const BasicDriverInfo &bi ) const {
