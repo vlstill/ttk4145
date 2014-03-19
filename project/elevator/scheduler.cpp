@@ -56,8 +56,9 @@ void Scheduler::_handleButtonPress( int updateElId, ButtonType type, int floor )
 
             int dist = std::abs( state.lastFloor - floor );
 
+            // penalizations for non-idle elevators
             if ( state.stopped )
-                dist += 10 * (_bounds.maxFloor() - _bounds.minFloor()); // penalisation
+                dist += 10 * (_bounds.maxFloor() - _bounds.minFloor()); // stopped penalization
 
             if (    ( state.direction == Direction::Up
                             && ( (type == ButtonType::CallUp && floor > state.lastFloor )
@@ -67,11 +68,11 @@ void Scheduler::_handleButtonPress( int updateElId, ButtonType type, int floor )
                             && ( (type == ButtonType::CallDown && floor < state.lastFloor )
                                 || floor == _bounds.minFloor() ) )
                )
-                dist += _bounds.maxFloor() - _bounds.minFloor() + 1; // busy penalisation
-            else
+                dist += _bounds.maxFloor() - _bounds.minFloor() + 1; // busy penalization
+            else if ( state.direction != Direction::None ) // not idle
                 // as a last resort we can schedule floor even to elevator which is
                 // running in different direction
-                dist += 2 * (_bounds.maxFloor() - _bounds.minFloor() + 1); // penalisation
+                dist += 2 * (_bounds.maxFloor() - _bounds.minFloor() + 1); // penalization
 
             if ( dist < minDistance ) {
                 minDistance = dist;
