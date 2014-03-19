@@ -30,14 +30,19 @@ struct Ready {
 
 struct RecoveryState {
     RecoveryState() = default;
-    explicit RecoveryState( ElevatorState state ) : state( state ) { }
-    RecoveryState( std::tuple< ElevatorState > t )
-        : RecoveryState( std::get< 0 >( t ) )
+    RecoveryState( ElevatorState state, std::set< udp::IPv4Address > peers ) :
+        state( state ), peers( peers )
+    { }
+    RecoveryState( std::tuple< ElevatorState, std::set< udp::IPv4Address > > t )
+        : RecoveryState( std::get< 0 >( t ), std::get< 1 >( t ) )
     { }
     static TypeSignature type() { return TypeSignature::RecoveryState; }
-    std::tuple< ElevatorState > tuple() const { return std::make_tuple( state ); }
+    std::tuple< ElevatorState, std::set< udp::IPv4Address > > tuple() const {
+        return std::make_tuple( state, peers );
+    }
 
     ElevatorState state;
+    std::set< udp::IPv4Address > peers;
 };
 
 SessionManager::SessionManager( GlobalState &glo ) : _state( glo ),
@@ -85,6 +90,8 @@ void SessionManager::_initListener( std::atomic< int > *initPhase, int count ) {
                     assert( !maybeRecovered.isNothing(), "error deserializing Recovery" );
                     RecoveryState recovered = maybeRecovered.value();
                     _state.update( recovered.state );
+                    _peers = recovered.peers;
+                    *initPhase = 2;
                     break; }
                 default:
                     std::cerr << "Unknown packet received on service channel" << std::endl;
@@ -159,7 +166,7 @@ void SessionManager::_loop() {
             std::cerr << "NOTICE: Sending recovery to elevator " << i << ", ("
                       << pack.address().ip() << ")" << std::endl;
             if ( _state.has( i ) ) {
-                udp::Packet recovery = Serializer::toPacket( RecoveryState( _state.get( i ) ) );
+                udp::Packet recovery = Serializer::toPacket( RecoveryState( _state.get( i ), _peers ) );
                 recovery.address() = pack.address();
                 _sendSock.sendPacket( recovery );
             } else {
