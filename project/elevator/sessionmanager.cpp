@@ -163,19 +163,21 @@ void SessionManager::_loop() {
                 continue;
             }
 
-            std::cerr << "NOTICE: Sending recovery to elevator " << i << ", ("
-                      << pack.address().ip() << ")" << std::endl;
             if ( _state.has( i ) ) {
+                std::cerr << "NOTICE: Sending recovery to elevator " << i << ", ("
+                          << pack.address().ip() << ")" << std::endl;
                 udp::Packet recovery = Serializer::toPacket( RecoveryState( _state.get( i ), _peers ) );
-                recovery.address() = pack.address();
+                recovery.address() = commBroadcast;
                 _sendSock.sendPacket( recovery );
             } else {
+                std::cerr << "NOTICE: Late initialization of elevator " << i << ", ("
+                          << pack.address().ip() << ")" << std::endl;
                 // this is rare case when elevator initializes and then fails before
                 // sending state, it is so rare we will no wait for it to confirm
                 // explicitly (if it resends initial or ready, then we would
                 // resend ready anyway in this loop)
                 udp::Packet ready = Serializer::toPacket( Ready() );
-                ready.address() = pack.address();
+                ready.address() = commBroadcast;
                 _sendSock.sendPacket( ready );
             }
         }
