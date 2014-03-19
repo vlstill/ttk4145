@@ -74,7 +74,7 @@ struct ConcurrentQueue {
         }
     }
 
-    /** not safe -- the fact that empty returns true does not guearantee
+    /** not safe -- the fact that empty returns false does not guearantee
      * dequeue will not block
      */
     bool empty() {
