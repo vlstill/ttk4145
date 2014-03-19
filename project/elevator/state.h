@@ -107,6 +107,11 @@ struct GlobalState {
         return _elevators;
     }
 
+    bool has( int i ) const {
+        Guard g{ _lock };
+        return _elevators.find( i ) != _elevators.end();
+    }
+
     ElevatorState get( int i ) const {
         Guard g{ _lock };
         auto it = _elevators.find( i );

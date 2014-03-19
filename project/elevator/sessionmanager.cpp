@@ -136,7 +136,9 @@ void SessionManager::_loop() {
 
     while ( true ) {
         udp::Packet pack = _recvSock.recvPacketWithTimeout( 300 );
-        if ( pack.size() != 0 && Serializer::packetType( pack ) == TypeSignature::InitialPacket ) {
+        if ( pack.size() != 0
+                && (Serializer::packetType( pack ) == TypeSignature::InitialPacket
+                    || Serializer::packetType( pack ) == TypeSignature::ElevatorReady ) ) {
             int i = 0;
             bool found = false;
             for ( auto addr : _peers ) {
@@ -156,9 +158,19 @@ void SessionManager::_loop() {
 
             std::cerr << "NOTICE: Sending recovery to elevator " << i << ", ("
                       << pack.address().ip() << ")" << std::endl;
-            udp::Packet recovery = Serializer::toPacket( RecoveryState( _state.get( i ) ) );
-            recovery.address() = pack.address();
-            _sendSock.sendPacket( recovery );
+            if ( _state.has( i ) ) {
+                udp::Packet recovery = Serializer::toPacket( RecoveryState( _state.get( i ) ) );
+                recovery.address() = pack.address();
+                _sendSock.sendPacket( recovery );
+            } else {
+                // this is rare case when elevator initializes and then fails before
+                // sending state, it is so rare we will no wait for it to confirm
+                // explicitly (if it resends initial or ready, then we would
+                // resend ready anyway in this loop)
+                udp::Packet ready = Serializer::toPacket( Ready() );
+                ready.address() = pack.address();
+                _sendSock.sendPacket( ready );
+            }
         }
     }
 }
