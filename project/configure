@@ -1,5 +1,8 @@
 #!/bin/sh
 
+set -e
 mkdir -p _build
 cd _build
 cmake ..
+
+echo "Build directory _build is created, you can run make elevator in it"
