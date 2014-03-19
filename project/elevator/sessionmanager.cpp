@@ -50,7 +50,6 @@ SessionManager::SessionManager( GlobalState &glo ) : _state( glo ),
 { }
 
 void SessionManager::_initSender( std::atomic< int > *initPhase ) {
-    udp::Socket _sendSock{ commSend, true };
     _sendSock.enableBroadcast();
     while( *initPhase < 2 ) {
           udp::Packet pack;
@@ -138,7 +137,6 @@ void SessionManager::connect( int count ) {
 }
 
 void SessionManager::_loop() {
-    udp::Socket _recvSock{ commRcv, true };
 
     while ( true ) {
         udp::Packet pack = _recvSock.recvPacketWithTimeout( 300 );
