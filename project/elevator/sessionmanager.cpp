@@ -70,7 +70,6 @@ void SessionManager::_initSender( std::atomic< int > *initPhase ) {
 }
 
 void SessionManager::_initListener( std::atomic< int > *initPhase, int count ) {
-    udp::Socket _recvSock{ commRcv, true };
     std::set< udp::IPv4Address > barrier;
 
     while ( *initPhase < 2 ) {
