@@ -83,7 +83,8 @@ struct Main {
         GlobalState global;
         SessionManager sessman{ global };
         if ( optNodes->boolValue() && optNodes->intValue() > 1 ) {
-            sessman.connect( optNodes->intValue() );
+            nodes = optNodes->intValue();
+            sessman.connect( nodes );
             id = sessman.id();
         } else {
             id = 0;
