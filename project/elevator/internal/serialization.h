@@ -144,14 +144,14 @@ struct SerializableImpl< T, Trait::Container > {
 
     static void serialize( const T &source, char **to ) {
         *reinterpret_cast< long * >( *to ) = source.size();
-        to += sizeof( long );
+        *to += sizeof( long );
         for ( const ValueType &val : source )
             ValueSerializable::serialize( val, to );
     }
 
     static T deserialize( const char **from ) {
         const long count = *reinterpret_cast< const long * >( *from );
-        from += sizeof( long );
+        *from += sizeof( long );
         std::vector< ValueType > tempstore;
         for ( long i = 0; i < count; ++i )
             tempstore.push_back( ValueSerializable::deserialize( from ) );

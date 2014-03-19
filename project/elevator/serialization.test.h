@@ -118,6 +118,23 @@ struct TestSerializationInternal {
         assert_eq( buff.get() + size, ptr, "" );
         assert_eq( arr, arr2, "" );
     }
+
+    Test set() {
+        using Type = std::set< int >;
+        const int size = sizeof( long ) + 4 * sizeof( int );
+
+        Type set{ { 1, 2, 3, 4 } };
+
+        std::unique_ptr< char[] > buff{ new char[ size ] };
+        char *ptr = buff.get();
+
+        Serializable< Type >::serialize( set, &ptr );
+        assert_eq( size_t( buff.get() + size ), size_t( ptr ), "" );
+        ptr = buff.get();
+        Type set2 = Serializable< Type >::deserialize( &ptr );
+        assert_eq( size_t( buff.get() + size ), size_t( ptr ), "" );
+        assert_eq( set, set2, "" );
+    }
 };
 
 struct TestSerialization {
