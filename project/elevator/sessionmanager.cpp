@@ -28,6 +28,20 @@ struct Ready {
     }
 };
 
+struct RecoveryPeers {
+    RecoveryPeers() = default;
+    RecoveryPeers( std::set< udp::IPv4Address > peers ) : peers( peers ) { }
+    RecoveryPeers( std::tuple< std::set< udp::IPv4Address > > t )
+        : RecoveryPeers( std::get< 0 >( t ) )
+    { }
+    static TypeSignature type() { return TypeSignature::RecoveryPeers; }
+    std::tuple< std::set< udp::IPv4Address > > tuple() const {
+        return std::make_tuple( peers );
+    }
+
+    std::set< udp::IPv4Address > peers;
+};
+
 struct RecoveryState {
     RecoveryState() = default;
     RecoveryState( ElevatorState state, std::set< udp::IPv4Address > peers ) :
@@ -81,6 +95,13 @@ void SessionManager::_initListener( std::atomic< int > *initPhase, int count ) {
                 case TypeSignature::ElevatorReady: {
                     _peers.insert( pack.address().ip() ); // it might still be that we dont know
                     barrier.insert( pack.address().ip() );
+                    break; }
+                case TypeSignature::RecoveryPeers: {
+                    auto maybePeers = Serializer::fromPacket< RecoveryPeers >( pack );
+                    assert( !maybePeers.isNothing(), "error deserializing Peers" );
+                    RecoveryPeers recovered = maybePeers.value();
+                    _peers = recovered.peers;
+                    *initPhase = 2;
                     break; }
                 case TypeSignature::RecoveryState: {
                     _needRecovery = true;
@@ -141,8 +162,8 @@ void SessionManager::_loop() {
     while ( true ) {
         udp::Packet pack = _recvSock.recvPacketWithTimeout( 300 );
         if ( pack.size() != 0
-                && (Serializer::packetType( pack ) == TypeSignature::InitialPacket
-                    || Serializer::packetType( pack ) == TypeSignature::ElevatorReady ) ) {
+                && Serializer::packetType( pack ) == TypeSignature::InitialPacket )
+        {
             int i = 0;
             bool found = false;
             for ( auto addr : _peers ) {
@@ -176,7 +197,7 @@ void SessionManager::_loop() {
                 // sending state, it is so rare we will no wait for it to confirm
                 // explicitly (if it resends initial or ready, then we would
                 // resend ready anyway in this loop)
-                udp::Packet ready = Serializer::toPacket( Ready() );
+                udp::Packet ready = Serializer::toPacket( RecoveryPeers( _peers ) );
                 ready.address() = target;
                 _sendSock.sendPacket( ready );
             }

@@ -27,7 +27,8 @@ enum class TypeSignature {
 
     InitialPacket,
     ElevatorReady,
-    RecoveryState
+    RecoveryState,
+    RecoveryPeers
 };
 
 template< typename T >
