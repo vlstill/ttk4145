@@ -6,9 +6,9 @@ namespace elevator {
 
 using namespace serialization;
 
-const udp::Address commSend{ udp::IPv4Address::any, udp::Port{ 64032 } };
-const udp::Address commRcv{ udp::IPv4Address::any, udp::Port{ 64033 } };
-const udp::Address commBroadcast{ udp::IPv4Address::broadcast, udp::Port{ 64033 } };
+const udp::Address SessionManager::commSend{ udp::IPv4Address::any, udp::Port{ 64032 } };
+const udp::Address SessionManager::commRcv{ udp::IPv4Address::any, udp::Port{ 64033 } };
+const udp::Address SessionManager::commBroadcast{ udp::IPv4Address::broadcast, udp::Port{ 64033 } };
 
 struct Initial {
     Initial() = default;
