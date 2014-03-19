@@ -18,6 +18,7 @@ struct IPv4Address {
 
     /** create address -- explicit to avoid implicit cast from int */
     explicit constexpr IPv4Address( uint32_t addr ) : _addr( addr ) { }
+    explicit constexpr IPv4Address( std::tuple< uint32_t > t ) : _addr( std::get< 0 >( t ) ) { }
     explicit IPv4Address( std::array< uint8_t, 4 > arr ) :
         _addr( (arr[ 0 ] << 24) | (arr[ 1 ] << 16) | (arr[ 2 ] << 8) | arr[ 3 ] )
     { }
@@ -25,6 +26,8 @@ struct IPv4Address {
         _addr( (a << 24) | (b << 16) | (c << 8) | d )
     { }
     constexpr IPv4Address() : _addr( 0 ) { }
+
+    std::tuple< uint32_t > tuple() const { return std::make_tuple( _addr ); }
 
     /** read address */
     uint32_t asInt() const { return _addr; }
