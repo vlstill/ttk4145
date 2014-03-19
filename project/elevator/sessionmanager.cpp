@@ -100,7 +100,7 @@ void SessionManager::_initListener( std::atomic< int > *initPhase, int count ) {
                     auto maybePeers = Serializer::fromPacket< RecoveryPeers >( pack );
                     assert( !maybePeers.isNothing(), "error deserializing Peers" );
                     RecoveryPeers recovered = maybePeers.value();
-                    _peers = recovered.peers;
+                    barrier = _peers = recovered.peers;
                     *initPhase = 2;
                     break; }
                 case TypeSignature::RecoveryState: {
