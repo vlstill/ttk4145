@@ -11,6 +11,7 @@
 #include <elevator/scheduler.h>
 #include <elevator/udptools.h>
 #include <elevator/udpqueue.h>
+#include <elevator/sessionmanager.h>
 
 
 namespace elevator {
@@ -68,76 +69,26 @@ struct Main {
             exit( 0 );
     }
 
-    // initPhase == 0 means we don't know other peers
-    // initPhase == 1 means we know but they may not know (so we must wait)
-    // initPhase == 2 means all peers know other peers
-    void sendToPeers( std::atomic< int > *initPhase ) {
-        Socket snd_sock{ commSend, true };
-        snd_sock.enableBroadcast();
-        while( *initPhase < 2 ) {
-            Packet pack( sizeof( int ) );
-            pack.address() = commBroadcast;
-            pack.get< int >() = peerMsg + (*initPhase > 0 ? 1 : 0);
-            bool sent = snd_sock.sendPacket( pack );
-            assert( sent, "send failed" );
-            std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
-        }
-    }
-
-    void  findPeersListener( std::atomic< int > *initPhase ) {
-        Socket rd_sock{ commRcv, true };
-        std::set< IPv4Address > barrier;
-
-        while ( *initPhase < 2 ) {
-            Packet pack = rd_sock.recvPacketWithTimeout( 300 );
-            if ( pack.size() != 0 ) {
-                if ( pack.get< int >() == peerMsg ) {
-                    peerAddresses.insert( pack.address().ip() );
-                } else if ( pack.get< int >() == peerMsg + 1 ) {
-                    peerAddresses.insert( pack.address().ip() ); // it might still be that we dont know
-                    barrier.insert( pack.address().ip() );
-                }
-                if ( int( barrier.size() ) == nodes )
-                    *initPhase = 2;
-                else if ( int( peerAddresses.size() ) == nodes )
-                    *initPhase = 1;
-            }
-        }
-    }
-
     void main() {
 
-        if ( optNodes->boolValue() && optNodes->intValue() > 1 ) {
-            nodes = optNodes->intValue();
-            std::atomic< int > initPhase{ 0 };
-            std::thread findPeers( &Main::sendToPeers, this, &initPhase );
-            findPeersListener( &initPhase );
-            findPeers.join();
-
-            auto localAddrs = IPv4Address::getMachineAddresses();
-            int i = 0;
-            // the set is sorted (guaranteed by C++) and same on all elevators
-            for ( auto addr : peerAddresses ) {
-                if ( localAddrs.find( addr ) != localAddrs.end() ) {
-                    id = i;
-                    break;
-                }
-                ++i;
-            }
-            assert_leq( 0, id, "Could not assing ID" );
-            std::cout << "detected id " << id << std::endl;
-        } else {
-            id = 0;
-        }
-
         if ( avoidRecovery->boolValue() ) {
-            runElevator( id );
+            runElevator();
         } else {
             assert_unimplemented();
         }
     }
 
-    void runElevator( int id ) {
+    void runElevator() {
+        int id;
+        GlobalState global;
+        SessionManager sessman{ global };
+        if ( optNodes->boolValue() && optNodes->intValue() > 1 ) {
+            sessman.connect( optNodes->intValue() );
+            id = sessman.id();
+        } else {
+            id = 0;
+        }
+
         std::cout << "starting elevator, id " << id << " of " << nodes << " elevators" << std::endl;
         HeartBeatManager heartbeatManager;
 
