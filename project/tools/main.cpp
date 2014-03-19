@@ -4,15 +4,31 @@
 #include <thread>
 #include <chrono>
 #include <set>
-
+#include <signal.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <wibble/commandline/parser.h>
-
+#include <string.h>
+#include <elevator/driver.h>
+#include <elevator/test.h>
 #include <elevator/elevator.h>
 #include <elevator/scheduler.h>
 #include <elevator/udptools.h>
 #include <elevator/udpqueue.h>
 #include <elevator/sessionmanager.h>
 
+void handler( int sig, siginfo_t *info, void * ) {
+    elevator::Driver driver;
+    driver.stopElevator();
+    std::cerr << "elevator stopped" << std::endl;
+    if ( sig != SIGCHLD ) {
+        exit( sig );
+    } else {
+        int pid = info->si_pid;
+        waitpid( pid, nullptr, WNOHANG );
+    }
+}
 
 namespace elevator {
 
@@ -69,12 +85,51 @@ struct Main {
             exit( 0 );
     }
 
+    void setupChild() {
+        struct sigaction act;
+        memset( &act, 0, sizeof( struct sigaction ) );
+        act.sa_handler = SIG_DFL;
+        sigaction( SIGCHLD, &act, nullptr );
+        sigaction( SIGINT, &act, nullptr );
+        
+        runElevator();
+    }
+
+    void watchChild( int childPid ) {
+        while ( true ) {
+            pause(); // wait for signal
+            initRecovery();
+        }
+    }
+
+    void setupSignals() {
+        struct sigaction act;
+        memset( &act, 0, sizeof( struct sigaction ) );
+        act.sa_sigaction = handler;
+        act.sa_flags = SA_SIGINFO;
+        sigaction( SIGCHLD, &act, nullptr ); // child died
+        sigaction( SIGINT, &act, nullptr ); // ctrl+c
+    }
+
+    void initRecovery() {
+        setupSignals();
+        int pid = fork();
+        if ( pid == 0 ) { // child
+            setupChild();
+        } else if ( pid > 0 ) { // parent
+            watchChild( pid );
+        } else {
+            std::cerr << "Fatal error: fork failed" << std::endl;
+            exit( 1 );
+        }
+    }
+
     void main() {
 
         if ( avoidRecovery->boolValue() ) {
             runElevator();
         } else {
-            assert_unimplemented();
+            initRecovery();
         }
     }
 
