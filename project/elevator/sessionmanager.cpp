@@ -160,11 +160,14 @@ void SessionManager::_loop() {
                 continue;
             }
 
+            // we cannot use broadcast here: it would cause infinite recovery loop
+            udp::Address target{ pack.address().ip(), commBroadcast.port() };
+
             if ( _state.has( i ) ) {
                 std::cerr << "NOTICE: Sending recovery to elevator " << i << ", ("
                           << pack.address().ip() << ")" << std::endl;
                 udp::Packet recovery = Serializer::toPacket( RecoveryState( _state.get( i ), _peers ) );
-                recovery.address() = commBroadcast;
+                recovery.address() = target;
                 _sendSock.sendPacket( recovery );
             } else {
                 std::cerr << "NOTICE: Late initialization of elevator " << i << ", ("
@@ -174,7 +177,7 @@ void SessionManager::_loop() {
                 // explicitly (if it resends initial or ready, then we would
                 // resend ready anyway in this loop)
                 udp::Packet ready = Serializer::toPacket( Ready() );
-                ready.address() = commBroadcast;
+                ready.address() = target;
                 _sendSock.sendPacket( ready );
             }
         }
