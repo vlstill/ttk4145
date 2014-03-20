@@ -136,53 +136,44 @@ struct Main {
     void runElevator() {
         int id;
         GlobalState global;
+        HeartBeatManager heartbeatManager;
         SessionManager sessman{ global };
+
         if ( optNodes->boolValue() && optNodes->intValue() > 1 ) {
             nodes = optNodes->intValue();
-            sessman.connect( nodes );
+            sessman.connect( heartbeatManager.getNew( 5000 ), nodes );
             id = sessman.id();
         } else {
             id = 0;
         }
 
         std::cout << "starting elevator, id " << id << " of " << nodes << " elevators" << std::endl;
-        HeartBeatManager heartbeatManager;
 
         ConcurrentQueue< Command > commandsToLocalElevator;
         ConcurrentQueue< Command > commandsToOthers;
         ConcurrentQueue< StateChange > stateChangesIn;
         ConcurrentQueue< StateChange > stateChangesOut;
 
-        std::unique_ptr< QueueReceiver< Command > > commandsToLocalElevatorReceiver;
-        std::unique_ptr< QueueReceiver< StateChange > > stateChangesInReceiver;
-        std::unique_ptr< QueueSender< StateChange > > stateChangesOutSender;
-        std::unique_ptr< QueueSender< Command > > commandsToOthersReceiver;
-
-        if ( nodes > 1 ) {
-            commandsToOthersReceiver.reset( new QueueSender< Command >{
-                    commSend,
-                    Address{ IPv4Address::broadcast, commandPort },
-                    commandsToOthers
-                } );
-
-            commandsToLocalElevatorReceiver.reset( new QueueReceiver< Command >{
-                    Address{ IPv4Address::any, commandPort },
-                    commandsToLocalElevator,
-                    [id]( const Command &comm ) { return comm.targetElevatorId == id; }
-                } );
-
-            stateChangesInReceiver.reset( new QueueReceiver< StateChange >{
-                    Address{ IPv4Address::any, stateChangePort },
-                    stateChangesIn,
-                    [id]( const StateChange &chan ) { return chan.state.id != id; }
-                } );
-
-            stateChangesOutSender.reset( new QueueSender< StateChange >{
-                    commSend,
-                    Address{ IPv4Address::broadcast, stateChangePort },
-                    stateChangesOut
-                } );
-        }
+        QueueReceiver< Command > commandsToLocalElevatorReceiver {
+            Address{ IPv4Address::any, commandPort },
+            commandsToLocalElevator,
+            [id]( const Command &comm ) { return comm.targetElevatorId == id; }
+        };
+        QueueReceiver< StateChange > stateChangesInReceiver {
+            Address{ IPv4Address::any, stateChangePort },
+            stateChangesIn,
+            [id]( const StateChange &chan ) { return chan.state.id != id; }
+        };
+        QueueSender< StateChange > stateChangesOutSender {
+            commSend,
+            Address{ IPv4Address::broadcast, stateChangePort },
+            stateChangesOut
+        };
+        QueueSender< Command > commandsToOthersReceiver {
+            commSend,
+            Address{ IPv4Address::broadcast, commandPort },
+            commandsToOthers
+        };
 
         /* about heartbeat lengths:
          * - elevator loop is polling and never sleeping, therefore its scheduling
@@ -195,20 +186,30 @@ struct Main {
          *   all state changes from elevator, but we have to be more carefull here
          *   as it is sleeping sometimes
          */
-        Elevator elevator{ id, heartbeatManager.getNew( 500 /* ms */ ),
-            commandsToLocalElevator, stateChangesIn };
-        Scheduler scheduler{ id, heartbeatManager.getNew( 1000 /* ms */ ),
+        Elevator elevator {
+            id,
+            heartbeatManager.getNew( 500 /* ms */ ),
+            commandsToLocalElevator,
+            stateChangesIn
+        };
+        Scheduler scheduler {
+            id,
             elevator.info(),
-            stateChangesIn, stateChangesOut, commandsToOthers, commandsToLocalElevator };
+            global,
+            stateChangesIn,
+            stateChangesOut,
+            commandsToOthers,
+            commandsToLocalElevator
+        };
 
         if ( nodes > 1 ) {
-            commandsToLocalElevatorReceiver->run();
-            stateChangesInReceiver->run();
-            commandsToOthersReceiver->run();
-            stateChangesOutSender->run();
+            commandsToLocalElevatorReceiver.run();
+            stateChangesInReceiver.run();
+            commandsToOthersReceiver.run();
+            stateChangesOutSender.run();
         }
         elevator.run();
-        scheduler.run();
+        scheduler.run( heartbeatManager.getNew( 1000 ), heartbeatManager.getNew( 1000 ) );
 
         // wait for 2 seconds so that everything has chance to start
         // it something fails to start in this time heartbeat will
