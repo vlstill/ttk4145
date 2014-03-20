@@ -2,6 +2,7 @@
 
 /** the middle level API for elevator */
 
+#include <climits>
 #include <tuple>
 #include <cstdint>
 #include <elevator/io.h>
