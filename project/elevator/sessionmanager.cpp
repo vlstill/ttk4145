@@ -123,7 +123,7 @@ void SessionManager::_initListener( std::atomic< int > *initPhase, int count ) {
     }
 }
 
-void SessionManager::connect( int count ) {
+void SessionManager::connect( HeartBeat &heartbeat, int count ) {
     // first continue sending Initial messages untill we have count peers
 
     std::atomic< int > initPhase{ 0 };
@@ -154,13 +154,13 @@ void SessionManager::connect( int count ) {
     // if Ready is received add to ready set
 
     // now start monitoring thread
-    _thr = std::thread( restartWrapper( &SessionManager::_loop ), this );
+    _thr = std::thread( restartWrapper( &SessionManager::_loop ), this, std::ref( heartbeat ) );
 }
 
-void SessionManager::_loop() {
+void SessionManager::_loop( HeartBeat &heartbeat ) {
 
     while ( true ) {
-        udp::Packet pack = _recvSock.recvPacketWithTimeout( 300 );
+        udp::Packet pack = _recvSock.recvPacketWithTimeout( heartbeat.threshold() / 10 );
         if ( pack.size() != 0
                 && Serializer::packetType( pack ) == TypeSignature::InitialPacket )
         {
@@ -202,6 +202,7 @@ void SessionManager::_loop() {
                 _sendSock.sendPacket( ready );
             }
         }
+        heartbeat.beat();
     }
 }
 

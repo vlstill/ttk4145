@@ -1,6 +1,7 @@
 #include <thread>
-#include <elevator/state.h>
 #include <elevator/udptools.h>
+#include <elevator/heartbeat.h>
+#include <elevator/globalstate.h>
 
 #ifndef ELEVATOR_SESSION_MANAGER_H
 #define ELEVATOR_SESSION_MANAGER_H
@@ -16,7 +17,7 @@ struct SessionManager {
 
     /* initializes connection (blocking) with count members and then spawns
      * thread for recovery assistance if count > 1 */
-    void connect( int count );
+    void connect( HeartBeat &, int count );
     bool connected() const { return _id != INT_MIN; }
     bool needRecoveryState() const { return _needRecovery; }
     ElevatorState recoveryState() const;
@@ -34,7 +35,7 @@ struct SessionManager {
 
     std::thread _thr;
 
-    void _loop();
+    void _loop( HeartBeat & );
     void _initSender( std::atomic< int > * );
     void _initListener( std::atomic< int > *, int );
 };
