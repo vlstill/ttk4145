@@ -1,5 +1,5 @@
 #include <elevator/concurrentqueue.h>
-#include <elevator/state.h>
+#include <elevator/globalstate.h>
 #include <elevator/command.h>
 #include <elevator/heartbeat.h>
 #include <thread>
@@ -11,31 +11,35 @@
 namespace elevator {
 
 struct Scheduler {
-    Scheduler( int, HeartBeat &, BasicDriverInfo info,
+    Scheduler( int, BasicDriverInfo info, GlobalState &,
             ConcurrentQueue< StateChange > &,
             ConcurrentQueue< StateChange > &,
             ConcurrentQueue< Command > &,
             ConcurrentQueue< Command > & );
     ~Scheduler();
 
-    void run();
+    void run( HeartBeat &, HeartBeat & );
 
   private:
     int _localElevId;
-    HeartBeat &_heartbeat;
     BasicDriverInfo _bounds;
+    GlobalState &_globalState;
     ConcurrentQueue< StateChange > &_stateUpdateIn;
     ConcurrentQueue< StateChange > &_stateUpdateOut;
     ConcurrentQueue< Command > &_commandsToRemote;
     ConcurrentQueue< Command > &_commandsToLocal;
-    GlobalState _globalState;
-    std::thread _thr;
+    std::thread _thrSched;
+    std::thread _thrReq;
     std::atomic< bool > _terminate;
 
-    void _runLocal();
+    void _schedLoop( HeartBeat * );
+    void _reqCheckLoop( HeartBeat * );
 
     void _handleButtonPress( int, ButtonType, int );
+    void _resendRequest( Request );
+    void _addAndForwardRequest( Command );
     void _forwardToTargets( Command );
+    int _optimalElevator( ButtonType, int );
 };
 
 }

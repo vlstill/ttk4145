@@ -3,14 +3,14 @@
 
 namespace elevator {
 
-Scheduler::Scheduler( int localId, HeartBeat &hb, BasicDriverInfo info,
+Scheduler::Scheduler( int localId, BasicDriverInfo info, GlobalState &global,
         ConcurrentQueue< StateChange > &stateUpdateIn,
         ConcurrentQueue< StateChange > &stateUpdateOut,
         ConcurrentQueue< Command > &commandsToRemote,
         ConcurrentQueue< Command > &commandsToLocal ) :
     _localElevId( localId ),
-    _heartbeat( hb ),
     _bounds( info ),
+    _globalState( global ),
     _stateUpdateIn( stateUpdateIn ),
     _stateUpdateOut( stateUpdateOut ),
     _commandsToRemote( commandsToRemote ),
@@ -19,14 +19,16 @@ Scheduler::Scheduler( int localId, HeartBeat &hb, BasicDriverInfo info,
 { }
 
 Scheduler::~Scheduler() {
-    if ( _thr.joinable() ) {
+    if ( _thrSched.joinable() ) {
         _terminate = true;
-        _thr.join();
+        _thrSched.join();
+        _thrReq.join();
     }
 }
 
-void Scheduler::run() {
-    _thr = std::thread( restartWrapper( &Scheduler::_runLocal ), this );
+void Scheduler::run( HeartBeat &shed, HeartBeat &req ) {
+    _thrSched = std::thread( restartWrapper( &Scheduler::_schedLoop ), this, &shed );
+    _thrReq = std::thread( restartWrapper( &Scheduler::_reqCheckLoop ), this, &req );
 }
 
 const char *showChange( ChangeType );
@@ -38,6 +40,62 @@ void Scheduler::_forwardToTargets( Command comm ) {
         _commandsToRemote.enqueue( comm );
 }
 
+int Scheduler::_optimalElevator( ButtonType type, int floor ) {
+    int minDistance = INT_MAX;
+    int minId = INT_MIN;
+
+    for ( auto &statepair : _globalState.elevators() ) {
+        const ElevatorState &state = statepair.second;
+
+        int dist = std::abs( state.lastFloor - floor );
+
+        // penalizations for non-idle elevators
+        if ( state.stopped )
+            dist += 10 * (_bounds.maxFloor() - _bounds.minFloor()); // stopped penalization
+
+        if (    ( state.direction == Direction::Up
+                        && ( (type == ButtonType::CallUp && floor > state.lastFloor )
+                            || floor == _bounds.maxFloor() ) )
+            ||
+                ( state.direction == Direction::Down
+                        && ( (type == ButtonType::CallDown && floor < state.lastFloor )
+                            || floor == _bounds.minFloor() ) )
+           )
+            dist += _bounds.maxFloor() - _bounds.minFloor() + 1; // busy penalization
+        else if ( state.direction != Direction::None ) // not idle
+            // as a last resort we can schedule floor even to elevator which is
+            // running in different direction
+            dist += 2 * (_bounds.maxFloor() - _bounds.minFloor() + 1); // penalization
+
+        if ( dist < minDistance ) {
+            minDistance = dist;
+            minId = state.id;
+        }
+    }
+    assert_leq( 0, minId, "no minimal distance found" );
+    return minId;
+}
+
+void Scheduler::_resendRequest( Request r ) {
+    ++r.repeated;
+    if ( r.repeated > 3 ) {
+        // reschedule
+        r.command.targetElevatorId = _optimalElevator(
+                r.command.commandType == CommandType::CallToFloorAndGoUp
+                    ? ButtonType::CallUp : ButtonType::CallDown,
+                r.command.targetFloor );
+    }
+    r.updateDeadline( 50 );
+    _globalState.requests().push( r );
+    _forwardToTargets( r.command );
+}
+
+void Scheduler::_addAndForwardRequest( Command comm ) {
+    Request r( comm, 100 ); // we need to be fast here
+    _globalState.requests().push( r );
+    _forwardToTargets( comm );
+}
+
 void Scheduler::_handleButtonPress( int updateElId, ButtonType type, int floor ) {
     // first setup lights
     Command lights{ type == ButtonType::CallUp
@@ -47,51 +105,19 @@ void Scheduler::_handleButtonPress( int updateElId, ButtonType type, int floor )
 
     // each elevator schedules changes originating from it
     if ( updateElId == _localElevId ) {
-        // now find optimal elevator
-        int minDistance = INT_MAX;
-        int minId = INT_MIN;
-
-        for ( auto &statepair : _globalState.elevators() ) {
-            const ElevatorState &state = statepair.second;
-
-            int dist = std::abs( state.lastFloor - floor );
-
-            // penalizations for non-idle elevators
-            if ( state.stopped )
-                dist += 10 * (_bounds.maxFloor() - _bounds.minFloor()); // stopped penalization
-
-            if (    ( state.direction == Direction::Up
-                            && ( (type == ButtonType::CallUp && floor > state.lastFloor )
-                                || floor == _bounds.maxFloor() ) )
-                ||
-                    ( state.direction == Direction::Down
-                            && ( (type == ButtonType::CallDown && floor < state.lastFloor )
-                                || floor == _bounds.minFloor() ) )
-               )
-                dist += _bounds.maxFloor() - _bounds.minFloor() + 1; // busy penalization
-            else if ( state.direction != Direction::None ) // not idle
-                // as a last resort we can schedule floor even to elevator which is
-                // running in different direction
-                dist += 2 * (_bounds.maxFloor() - _bounds.minFloor() + 1); // penalization
-
-            if ( dist < minDistance ) {
-                minDistance = dist;
-                minId = state.id;
-            }
-        }
-        assert_leq( 0, minId, "no minimal distance found" );
+        int minId = _optimalElevator( type, floor );
 
         Command comm{ type == ButtonType::CallUp
                           ? CommandType::CallToFloorAndGoUp
                           : CommandType::CallToFloorAndGoDown,
                       minId, floor };
-        _forwardToTargets( comm );
+        _addAndForwardRequest( comm );
     }
 }
 
-void Scheduler::_runLocal() {
+void Scheduler::_schedLoop( HeartBeat *heartbeat ) {
     while ( !_terminate.load( std::memory_order::memory_order_relaxed ) ) {
-        auto maybeUpdate = _stateUpdateIn.timeoutDequeue( _heartbeat.threshold() / 10 );
+        auto maybeUpdate = _stateUpdateIn.timeoutDequeue( heartbeat->threshold() / 10 );
         if ( !maybeUpdate.isNothing() ) {
             auto update = maybeUpdate.value();
             _globalState.update( update.state );
@@ -112,7 +138,9 @@ void Scheduler::_runLocal() {
                 case ChangeType::None:
                 case ChangeType::KeepAlive:
                 case ChangeType::OtherChange:
-                    continue;
+                case ChangeType::InsideButtonPresed:
+                case ChangeType::Served:
+                    break;
                 case ChangeType::ButtonUpPressed:
                     _handleButtonPress( update.state.id, ButtonType::CallUp, update.changeFloor );
                     break;
@@ -122,15 +150,32 @@ void Scheduler::_runLocal() {
                 case ChangeType::ServedDown:
                     _forwardToTargets( Command{ CommandType::TurnOffLightDown,
                             _localElevId, update.changeFloor } );
+                    _globalState.requests().ackRequest( update );
                     break;
                 case ChangeType::ServedUp:
                     _forwardToTargets( Command{ CommandType::TurnOffLightUp,
                             _localElevId, update.changeFloor } );
+                    _globalState.requests().ackRequest( update );
+                    break;
+                case ChangeType::GoingToServeUp:
+                case ChangeType::GoingToServeDown:
+                    _globalState.requests().ackRequest( update );
                     break;
             }
         }
 
-        _heartbeat.beat();
+        heartbeat->beat();
+    }
+}
+
+void Scheduler::_reqCheckLoop( HeartBeat *heartbeat ) {
+    while ( !_terminate.load( std::memory_order::memory_order_relaxed ) ) {
+
+        auto mreq = _globalState.requests().waitForEarliestDeadline( heartbeat->threshold() / 10 );
+        if ( !mreq.isNothing() )
+            _resendRequest( mreq.value() );
+
+        heartbeat->beat();
     }
 }
 
@@ -147,6 +192,9 @@ const char *showChange( ChangeType t ) {
         show( Served );
         show( ServedUp );
         show( ServedDown );
+
+        show( GoingToServeDown );
+        show( GoingToServeUp );
 
         show( OtherChange );
     }
