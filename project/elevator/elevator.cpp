@@ -315,10 +315,12 @@ void Elevator::_loop() {
             case CommandType::CallToFloorAndGoUp:
                 _elevState.upButtons.set( true, command.targetFloor, _driver );
                 _driver.setButtonLamp( Button{ ButtonType::CallUp, command.targetFloor }, true );
+                _emitStateChange( ChangeType::GoingToServeUp, command.targetFloor );
                 break;
             case CommandType::CallToFloorAndGoDown:
                 _elevState.downButtons.set( true, command.targetFloor, _driver );
                 _driver.setButtonLamp( Button{ ButtonType::CallDown, command.targetFloor }, true );
+                _emitStateChange( ChangeType::GoingToServeDown, command.targetFloor );
                 break;
             case CommandType::TurnOnLightUp:
                 _driver.setButtonLamp( Button{ ButtonType::CallUp, command.targetFloor }, true );
