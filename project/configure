@@ -3,6 +3,6 @@
 set -e
 mkdir -p _build
 cd _build
-cmake ..
+cmake .. "$@"
 
 echo "Build directory _build is created, you can run make elevator in it"
