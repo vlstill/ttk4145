@@ -33,6 +33,7 @@ void Scheduler::run( HeartBeat &shed, HeartBeat &req ) {
 }
 
 const char *showChange( ChangeType );
+const char *showCommand( CommandType );
 
 void Scheduler::_forwardToTargets( Command comm ) {
     if ( comm.targetElevatorId == Command::ANY_ID || comm.targetElevatorId == _localElevId )
@@ -92,6 +93,11 @@ int Scheduler::_optimalElevator( ButtonType type, int floor ) {
 }
 
 void Scheduler::_resendRequest( Request r ) {
+    std::cerr << "WARNING: re-sending request: { type = "
+              << (r.type == RequestType::NotAcknowledged ? "NotAcknowledged" : "NotDone")
+              << ", repeated = " << r.repeated << ", command = { elevator = "
+              << r.command.targetElevatorId << ", floor = " << r.command.targetFloor
+              << ", type = " << showCommand( r.command.commandType ) << " } }" << std::endl;
     ++r.repeated;
     if ( r.repeated > 3 || r.type == RequestType::NotDone ) {
         // reschedule
@@ -219,5 +225,21 @@ const char *showChange( ChangeType t ) {
 #undef show
     return "<<unknown>>";
 }
+
+const char *showCommand( CommandType t ) {
+#define show( X ) case CommandType::X: return #X
+    switch ( t ) {
+        show( Empty );
+        show( CallToFloorAndGoUp );
+        show( CallToFloorAndGoDown );
+        show( TurnOffLightUp );
+        show( TurnOffLightDown );
+        show( TurnOnLightDown );
+        show( TurnOnLightUp );
+    }
+#undef show
+    return "<<unknown>>";
+}
+
 
 }
