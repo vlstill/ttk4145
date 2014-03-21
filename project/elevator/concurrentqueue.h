@@ -37,13 +37,6 @@ struct ConcurrentQueue {
         return data;
     }
 
-    std::deque< T > dequeueAll() {
-        Guard g{ _lock };
-        std::deque< T > ret;
-        std::swap( ret, _queue );
-        return ret;
-    }
-
     /** get and pop head of queue, this will block for up to given number
      * of milliseconds, and it nothing arrives return nothing
      */
