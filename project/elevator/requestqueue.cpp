@@ -5,7 +5,7 @@
 namespace elevator {
 
 TimePoint RequestQueue::_earliestDeadline( const Guard &, TimePoint extra ) const {
-    return _queue.empty() ? extra : std::min( _queue.top()._deadline, extra );
+    return _queue.empty() ? extra : std::min( _queue.top().deadline(), extra );
 }
 
 wibble::Maybe< Request > RequestQueue::waitForEarliestDeadline( MillisecondTime timeout ) {
@@ -21,6 +21,16 @@ wibble::Maybe< Request > RequestQueue::_waitForEarliestDeadline( Guard &g, TimeP
         // clean done requests
         while ( !_queue.empty() && _queue.top().type == RequestType::Done )
             _queue.pop();
+        // reschedule request if required
+        if ( !_queue.empty() && !_queue.top()._tweakedDeadline.isNothing() ) {
+            // we need to extract request and re-push it, because we cannot
+            // change deadline on request in queue
+            auto req = _queue.top();
+            _queue.pop();
+            req._deadline = req._tweakedDeadline.value();
+            req._tweakedDeadline = wibble::Maybe< TimePoint >::Nothing();
+            _queue.push( req );
+        }
         // get earliest deadline
         deadline = _earliestDeadline( g, d0 );
         // wait if necessary
@@ -41,14 +51,19 @@ void RequestQueue::push( Request r ) {
     Guard g{ _lock };
     TimePoint oldDeadline;
     if ( !_queue.empty() )
-        oldDeadline = _queue.top()._deadline;
+        oldDeadline = _queue.top().deadline();
     _queue.push( r );
     // we need to recalculate deadline at waiter
-    if ( _queue.size() == 1 || (_queue.size() > 1 && r._deadline < oldDeadline) )
+    if ( _queue.size() == 1 || (_queue.size() > 1 && r.deadline() < oldDeadline) )
         _signal.notify_all();
 }
 
-void RequestQueue::ackRequest( StateChange change ) {
+void RequestQueue::ackRequest( StateChange change, MillisecondTime newDeadlineDelta ) {
+    auto newDeadline = newDeadlineDelta == 0
+        ? wibble::Maybe< TimePoint >::Nothing()
+        : wibble::Maybe< TimePoint >::Just( std::chrono::steady_clock::now()
+                + std::chrono::milliseconds( newDeadlineDelta ) );
+
     Guard g{ _lock };
     for ( auto &req : _queue ) {
         if ( req.elevatorId() == change.state.id
@@ -59,6 +74,11 @@ void RequestQueue::ackRequest( StateChange change ) {
                 req.type = RequestType::NotDone;
             else if ( req.type == RequestType::NotDone )
                 req.type = RequestType::Done;
+            if ( !newDeadline.isNothing() ) {
+                req._tweakedDeadline = newDeadline;
+                req._deadlineDelta = newDeadlineDelta;
+            }
+            req.repeated = 0;
         }
     }
     // note: it might be that we ack-ed the very first item and someone was

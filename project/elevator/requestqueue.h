@@ -22,24 +22,26 @@ enum class RequestType { NotAcknowledged, NotDone, Done };
 struct Request {
     Request( Command comm, MillisecondTime deadline ) :
         type( RequestType::NotAcknowledged ),
-        deadline( deadline ),
-        _deadline( std::chrono::steady_clock::now() + std::chrono::milliseconds( deadline ) ),
         repeated( 0 ),
-        command( comm )
+        command( comm ),
+        _deadlineDelta( deadline ),
+        _deadline( std::chrono::steady_clock::now()
+                + std::chrono::milliseconds( _deadlineDelta ) ),
+        _tweakedDeadline( wibble::Maybe< TimePoint >::Nothing() )
     { }
     void updateDeadline() {
-        _deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds( deadline );
+        _deadline = std::chrono::steady_clock::now()
+            + std::chrono::milliseconds( _deadlineDelta );
     }
     void updateDeadline( MillisecondTime deadline ) {
-        this->deadline = deadline;
+        _deadlineDelta = deadline;
         updateDeadline();
     }
 
     RequestType type;
-    MillisecondTime deadline;
-    TimePoint _deadline;
     int repeated;
     Command command;
+
     int elevatorId() const { return command.targetElevatorId; }
     ChangeType triggerType() const {
         switch ( command.commandType ) {
@@ -56,12 +58,21 @@ struct Request {
         }
     };
     int triggerFloor() const { return command.targetFloor; }
+
+    TimePoint deadline() const { return _deadline; }
+
+    friend struct RequestQueue;
+
+  private:
+    MillisecondTime _deadlineDelta;
+    TimePoint _deadline;
+    wibble::Maybe< TimePoint > _tweakedDeadline;
 };
 
 /* comparator to make the request queue sorted in ascending order */
 struct RequestCompare {
     bool operator()( const Request &a, const Request &b ) const {
-        return a.deadline > b.deadline;
+        return a.deadline() > b.deadline();
     }
 };
 
@@ -69,7 +80,7 @@ struct RequestQueue {
 
     wibble::Maybe< Request > waitForEarliestDeadline( MillisecondTime timeout );
     void push( Request );
-    void ackRequest( StateChange change );
+    void ackRequest( StateChange change, MillisecondTime newDeadline = 0 );
     int size();
 
   private:
