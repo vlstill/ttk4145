@@ -19,8 +19,8 @@ struct SessionManager {
      * thread for recovery assistance if count > 1 */
     void connect( HeartBeat &, int count );
     bool connected() const { return _id != INT_MIN; }
-    bool needRecoveryState() const { return _needRecovery; }
-    ElevatorState recoveryState() const;
+    bool needRecoveryState() const { return !_recoveryState.isNothing(); }
+    ElevatorState recoveryState() const { return _recoveryState.value(); }
 
     int id() const { return _id; }
 
@@ -29,7 +29,7 @@ struct SessionManager {
     std::set< udp::IPv4Address > _peers;
     int _id;
     bool _initialized;
-    bool _needRecovery;
+    wibble::Maybe< ElevatorState > _recoveryState;
     udp::Socket _sendSock;
     udp::Socket _recvSock;
 

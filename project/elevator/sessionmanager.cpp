@@ -60,6 +60,7 @@ struct RecoveryState {
 };
 
 SessionManager::SessionManager( GlobalState &glo ) : _state( glo ),
+    _recoveryState( wibble::Maybe< ElevatorState >::Nothing() ),
     _sendSock{ commSend, true }, _recvSock{ commRcv, true }
 { }
 
@@ -104,12 +105,12 @@ void SessionManager::_initListener( std::atomic< int > *initPhase, int count ) {
                     *initPhase = 2;
                     break; }
                 case TypeSignature::RecoveryState: {
-                    _needRecovery = true;
                     auto maybeRecovered = Serializer::fromPacket< RecoveryState >( pack );
                     assert( !maybeRecovered.isNothing(), "error deserializing Recovery" );
                     RecoveryState recovered = maybeRecovered.value();
                     _state.update( recovered.state );
-                    _peers = recovered.peers;
+                    _recoveryState = wibble::Maybe< ElevatorState >::Just( recovered.state );
+                    barrier = _peers = recovered.peers;
                     *initPhase = 2;
                     break; }
                 default:
