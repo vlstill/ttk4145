@@ -33,6 +33,11 @@ struct Elevator {
         return BasicDriverInfo( _driver );
     }
 
+    void recover( ElevatorState state ) {
+        assert( !_thread.joinable() && !_terminate, "cannot recover after start" );
+        _elevState = state;
+    }
+
   private:
     void _loop();
 

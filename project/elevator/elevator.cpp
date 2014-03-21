@@ -213,16 +213,27 @@ void Elevator::_clearDirectionButtonLamp() {
 
 void Elevator::_initializeElevator() {
     // initialize according to lights
-    for ( auto b : _floorButtons ) {
-        if ( _driver.getButtonLamp( b ) ) {
-            if ( b.type() == ButtonType::TargetFloor )
-                _addTargetFloor( b.floor() );
-            else if ( b.type() == ButtonType::CallDown )
-                _elevState.downButtons.set( true, b.floor(), _driver );
-            else if ( b.type() == ButtonType::CallUp )
-                _elevState.upButtons.set( true, b.floor(), _driver );
-        }
+    for ( int i = _driver.minFloor(); i <= _driver.maxFloor(); ++i ) {
+        Button bi{ ButtonType::TargetFloor, i };
+        if ( _driver.getButtonLamp( bi ) )
+            _elevState.insideButtons.set( true, i, _driver );
+        // it can be that in recovered state more buttons were pressed
+        if ( _elevState.insideButtons.get( i, _driver ) )
+            _driver.setButtonLamp( bi, true );
+
+        // we can't set outside buttons by lights as we would assign even buttons
+        // handled by other elevators
+        Button bu{ ButtonType::CallUp, i };
+        if ( _elevState.upButtons.get( i, _driver ) )
+            _driver.setButtonLamp( bu, true );
+        Button bd{ ButtonType::CallDown, i };
+        if ( _elevState.downButtons.get( i, _driver ) )
+            _driver.setButtonLamp( bd, true );
     }
+    if ( _driver.getStopLamp() )
+        _elevState.stopped = true;
+    if ( _driver.getDoorOpenLamp() )
+        _elevState.doorOpen = true;
 }
 
 void Elevator::_loop() {
@@ -363,6 +374,7 @@ void Elevator::_loop() {
                 _setButtonLampAndFlag( Button( ButtonType::TargetFloor, currentFloor ), false );
                 // open doors
                 _driver.setDoorOpenLamp( true );
+                _elevState.doorOpen = true;
                 state = State::WaitingForInButton;
                 doorWaitingStarted = now();
                 _stopElevator();
@@ -387,7 +399,9 @@ void Elevator::_loop() {
             if ( FloorSet::hasAdditional( inFloorButtonsLast, inFloorButtons ) || timeout )
             {
                 _driver.setDoorOpenLamp( false );
+                _elevState.doorOpen = false;
                 state = State::Normal;
+                _emitStateChange( ChangeType::OtherChange, currentFloor );
                 if ( timeout ) {
                     _elevState.downButtons.set( false, currentFloor, _driver );
                     _elevState.upButtons.set( false, currentFloor, _driver );
