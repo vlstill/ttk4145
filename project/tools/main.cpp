@@ -1,27 +1,24 @@
 #include <climits>
 #include <iostream>
-#include <atomic>
-#include <thread>
-#include <chrono>
 #include <set>
+#include <cstring>
+
 #include <signal.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <wibble/commandline/parser.h>
-#include <string.h>
+
 #include <elevator/driver.h>
-#include <elevator/test.h>
 #include <elevator/elevator.h>
 #include <elevator/scheduler.h>
-#include <elevator/udptools.h>
 #include <elevator/udpqueue.h>
 #include <elevator/sessionmanager.h>
 
 void handler( int sig, siginfo_t *info, void * ) {
     elevator::Driver driver;
     driver.stopElevator();
-    std::cerr << "elevator stopped" << std::endl;
+    std::cerr << "SIGHANDLER: elevator stopped" << std::endl;
     if ( sig != SIGCHLD ) {
         exit( sig );
     } else {
@@ -91,11 +88,11 @@ struct Main {
         act.sa_handler = SIG_DFL;
         sigaction( SIGCHLD, &act, nullptr );
         sigaction( SIGINT, &act, nullptr );
-        
+
         runElevator();
     }
 
-    void watchChild( int childPid ) {
+    void watchChild() {
         while ( true ) {
             pause(); // wait for signal
             initRecovery();
@@ -113,11 +110,14 @@ struct Main {
 
     void initRecovery() {
         setupSignals();
+        std::cerr << "Starting auto-recovery wrapper... " << std::flush;
         int pid = fork();
         if ( pid == 0 ) { // child
+            std::cerr << "Child started" << std::endl;
             setupChild();
         } else if ( pid > 0 ) { // parent
-            watchChild( pid );
+            std::cerr << "OK" << std::endl;
+            watchChild();
         } else {
             std::cerr << "Fatal error: fork failed" << std::endl;
             exit( 1 );
@@ -140,14 +140,17 @@ struct Main {
         SessionManager sessman{ global };
 
         if ( optNodes->boolValue() && optNodes->intValue() > 1 ) {
+            std::cerr << "Initializing network connections, this might take some time" << std::endl
+                      << "Please start other peers and wait... " << std::flush;
             nodes = optNodes->intValue();
             sessman.connect( heartbeatManager.getNew( 5000 ), nodes );
             id = sessman.id();
+            std::cerr << "OK" << std::endl;
         } else {
             id = 0;
         }
 
-        std::cout << "starting elevator, id " << id << " of " << nodes << " elevators" << std::endl;
+        std::cout << "Starting elevator, id " << id << " of " << nodes << " elevators." << std::endl;
 
         ConcurrentQueue< Command > commandsToLocalElevator;
         ConcurrentQueue< Command > commandsToOthers;
