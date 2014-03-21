@@ -159,7 +159,9 @@ void Scheduler::_schedLoop( HeartBeat *heartbeat ) {
                     break;
                 case ChangeType::GoingToServeUp:
                 case ChangeType::GoingToServeDown:
-                    _globalState.requests().ackRequest( update );
+                    // the deadline here is quite high, because it takes time
+                    // to do the job
+                    _globalState.requests().ackRequest( update, 30 * 1000 );
                     break;
             }
         }
