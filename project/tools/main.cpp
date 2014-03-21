@@ -165,7 +165,13 @@ struct Main {
         QueueReceiver< StateChange > stateChangesInReceiver {
             Address{ IPv4Address::any, stateChangePort },
             stateChangesIn,
-            [id]( const StateChange &chan ) { return chan.state.id != id; }
+            [id]( StateChange &chan ) {
+                // this might seem weird, but clocks are not synchonized so the
+                // best approximation of timestamp of change is the time
+                // we received it
+                chan.state.timestamp = now();
+                return chan.state.id != id;
+            }
         };
         QueueSender< StateChange > stateChangesOutSender {
             commSend,
