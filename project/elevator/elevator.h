@@ -38,6 +38,9 @@ struct Elevator {
         _elevState = state;
     }
 
+    // maximum time between state update packets
+    static constexpr MillisecondTime keepAlive = 500;
+
   private:
     void _loop();
 
@@ -70,7 +73,6 @@ struct Elevator {
     void _initializeElevator();
 
     static constexpr MillisecondTime _speed = 300;
-    static constexpr MillisecondTime _keepAlive = 500;
     // how long to wait before closing doors
     static constexpr MillisecondTime _waitThreshold = 5000;
 };

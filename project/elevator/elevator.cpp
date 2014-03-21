@@ -417,7 +417,7 @@ void Elevator::_loop() {
             assert_unreachable();
         }
 
-        if ( _lastStateUpdate + _keepAlive <= now() )
+        if ( _lastStateUpdate + keepAlive <= now() )
             _emitStateChange( ChangeType::KeepAlive, currentFloor );
 
         // it is important to do heartbeat at the end so that we don't end up

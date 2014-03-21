@@ -1,5 +1,6 @@
 #include <elevator/scheduler.h>
 #include <elevator/restartwrapper.h>
+#include <elevator/elevator.h>
 
 namespace elevator {
 
@@ -44,10 +45,24 @@ int Scheduler::_optimalElevator( ButtonType type, int floor ) {
     int minDistance = INT_MAX;
     int minId = INT_MIN;
 
+    MillisecondTime now = elevator::now();
+    // somawhat arbitrary thresholds for time-aware scheduling
+    MillisecondTime outdatedThresh = Elevator::keepAlive * 1.2;
+    MillisecondTime deadThresh = Elevator::keepAlive * 3;
+
     for ( auto &statepair : _globalState.elevators() ) {
         const ElevatorState &state = statepair.second;
 
+        MillisecondTime age = now - state.timestamp;
+
         int dist = std::abs( state.lastFloor - floor );
+
+        // time-aware penasisation
+        if ( age > outdatedThresh )
+            dist += 10 * (_bounds.maxFloor() - _bounds.minFloor());
+        if ( age > deadThresh )
+            continue; // skip this one completely, it is most likely dead
+        // note: At least local cannot be dead so we should always find minumum
 
         // penalizations for non-idle elevators
         if ( state.stopped )
@@ -78,14 +93,15 @@ int Scheduler::_optimalElevator( ButtonType type, int floor ) {
 
 void Scheduler::_resendRequest( Request r ) {
     ++r.repeated;
-    if ( r.repeated > 3 ) {
+    if ( r.repeated > 3 || r.type == RequestType::NotDone ) {
         // reschedule
         r.command.targetElevatorId = _optimalElevator(
                 r.command.commandType == CommandType::CallToFloorAndGoUp
                     ? ButtonType::CallUp : ButtonType::CallDown,
                 r.command.targetFloor );
+        r.type = RequestType::NotAcknowledged;
     }
-    r.updateDeadline( 50 );
+    r.updateDeadline();
     _globalState.requests().push( r );
     _forwardToTargets( r.command );
 }
