@@ -18,19 +18,26 @@ wibble::Maybe< Request > RequestQueue::_waitForEarliestDeadline( Guard &g, TimeP
     TimePoint deadline = _earliestDeadline( g, d0 );
     std::cv_status cvs = std::cv_status::no_timeout;
     while ( cvs == std::cv_status::no_timeout ) {
-        // clean done requests
-        while ( !_queue.empty() && _queue.top().type == RequestType::Done )
-            _queue.pop();
-        // reschedule request if required
-        if ( !_queue.empty() && !_queue.top()._tweakedDeadline.isNothing() ) {
-            // we need to extract request and re-push it, because we cannot
-            // change deadline on request in queue
-            auto req = _queue.top();
-            _queue.pop();
-            req._deadline = req._tweakedDeadline.value();
-            req._tweakedDeadline = wibble::Maybe< TimePoint >::Nothing();
-            _queue.push( req );
-        }
+        bool cleaned = true;
+        // we need to to do what was only flagged by ackRequest
+        do {
+            // clean done requests
+            while ( !_queue.empty() && _queue.top().type == RequestType::Done ) {
+                cleaned = false;
+                _queue.pop();
+            }
+            // reschedule request if required
+            while ( !_queue.empty() && !_queue.top()._tweakedDeadline.isNothing() ) {
+                // we need to extract request and re-push it, because we cannot
+                // change deadline on request in queue
+                auto req = _queue.top();
+                _queue.pop();
+                req._deadline = req._tweakedDeadline.value();
+                req._tweakedDeadline = wibble::Maybe< TimePoint >::Nothing();
+                _queue.push( req );
+                cleaned = false;
+            }
+        } while ( !cleaned );
         // get earliest deadline
         deadline = _earliestDeadline( g, d0 );
         // wait if necessary
@@ -42,6 +49,7 @@ wibble::Maybe< Request > RequestQueue::_waitForEarliestDeadline( Guard &g, TimeP
     if ( !_queue.empty() && _queue.top().type != RequestType::Done ) {
         auto val = _queue.top();
         _queue.pop();
+        assert( val._tweakedDeadline.isNothing(), "invalid deadline" );
         return wibble::Maybe< Request >::Just( val );
     }
     return wibble::Maybe< Request >::Nothing();
