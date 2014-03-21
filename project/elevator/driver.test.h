@@ -61,6 +61,7 @@ struct TestDriver {
     }
 
     Test buttons() {
+#ifdef O_INTERACTIVE_UNIT_TESTS
         Driver driver;
         driver.init();
 
@@ -98,5 +99,6 @@ struct TestDriver {
             assert_eq( b.floor(), b2.floor(), "You pressed wrong button or there is error in code (bad floor)" );
             driver.setButtonLamp( b, false );
         }
+#endif
     }
 };
