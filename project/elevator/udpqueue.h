@@ -37,7 +37,7 @@ struct QueueReceiver {
     }
 
     QueueReceiver( udp::Address bindAddr, ConcurrentQueue< T > &queue,
-            std::function< bool( const T & ) > predicate ) :
+            std::function< bool( T & ) > predicate ) :
         _sock( bindAddr, true ), _queue( queue ), _pred( predicate )
     {
         _sock.enableBroadcast();
@@ -51,7 +51,7 @@ struct QueueReceiver {
     udp::Socket _sock;
     ConcurrentQueue< T > &_queue;
     std::thread _thr;
-    std::function< bool( const T & ) > _pred;
+    std::function< bool( T & ) > _pred;
 };
 
 template< typename T >
