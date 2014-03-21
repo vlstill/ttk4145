@@ -208,6 +208,10 @@ struct Main {
             commandsToOthersReceiver.run();
             stateChangesOutSender.run();
         }
+
+        if ( sessman.needRecoveryState() )
+            elevator.recover( sessman.recoveryState() );
+
         elevator.run();
         scheduler.run( heartbeatManager.getNew( 1000 ), heartbeatManager.getNew( 1000 ) );
 
