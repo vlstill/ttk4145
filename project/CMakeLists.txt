@@ -47,6 +47,7 @@ appendFlag( "CXX" "-std=c++11" )
 # allow compilation even without libComedi
 option( LIBCOMEDI "Whether to use real libComedi driver" ON )
 option( WARNING "Enable more warnings and some werror" OFF )
+option( INTERACTIVE_UNITS "Enable even interactive unit tests" OFF )
 
 find_path( LIBCOMEDI_PATH comedilib.h )
 if ( NOT LIBCOMEDI_PATH )
@@ -56,10 +57,15 @@ endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set( WARNING ON )
+    set( INTERACTIVE_UNITS ON )
 endif()
 
 if( WARNING )
     appendFlag( "C;CXX" "-Wextra -Wold-style-cast -Werror=sign-compare -Werror=return-type" )
+endif()
+
+if( INTERACTIVE_UNITS )
+    add_definitions( -DO_INTERACTIVE_UNIT_TESTS )
 endif()
 
 #
@@ -75,7 +81,7 @@ if ( LIBCOMEDI )
 endif()
 
 # plug in unit test
-add_custom_target( unit )
+add_custom_target( unit ALL )
 add_definitions( -DPOSIX ) # required by wibble
 add_subdirectory( wibble )
 include( wibble/test.cmake )
@@ -91,3 +97,4 @@ target_link_libraries( stop libelevator wibble )
 
 add_executable( elevator tools/main.cpp )
 target_link_libraries( elevator libelevator pthread wibble )
+
