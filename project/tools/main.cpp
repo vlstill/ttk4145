@@ -51,7 +51,7 @@ struct Main {
     int id = INT_MIN;
     int nodes = 1;
 
-    Main( int argc, const char **argv ) : opts( "elevator", "0.1" ) {
+    Main( int argc, const char **argv ) : opts( "elevator", "1.0" ) {
         // setup options
         execution = opts.createGroup( "Execution options" );
         optNodes = execution->add< IntOption >(
