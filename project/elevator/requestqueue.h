@@ -80,7 +80,7 @@ struct RequestQueue {
 
     wibble::Maybe< Request > waitForEarliestDeadline( MillisecondTime timeout );
     void push( Request );
-    void ackRequest( StateChange change, MillisecondTime newDeadline = 0 );
+    bool ackRequest( StateChange change, MillisecondTime newDeadline = 0 );
     int size();
 
   private:
