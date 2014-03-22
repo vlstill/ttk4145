@@ -172,21 +172,18 @@ void Scheduler::_schedLoop( HeartBeat *heartbeat ) {
                 case ChangeType::ServedDown:
                     _forwardToTargets( Command{ CommandType::TurnOffLightDown,
                             _localElevId, update.changeFloor } );
-                    if ( !_globalState.requests().ackRequest( update ) )
-                        std::cerr << "WARNING: ACK for unlisted request" << std::endl;
+                    _globalState.requests().ackRequest( update );
                     break;
                 case ChangeType::ServedUp:
                     _forwardToTargets( Command{ CommandType::TurnOffLightUp,
                             _localElevId, update.changeFloor } );
-                    if ( !_globalState.requests().ackRequest( update ) )
-                        std::cerr << "WARNING: ACK for unlisted request" << std::endl;
+                    _globalState.requests().ackRequest( update );
                     break;
                 case ChangeType::GoingToServeUp:
                 case ChangeType::GoingToServeDown:
                     // the deadline here is quite high, because it takes time
                     // to do the job
-                    if ( !_globalState.requests().ackRequest( update, 30 * 1000 ) )
-                        std::cerr << "WARNING: ACK for unlisted request" << std::endl;
+                    _globalState.requests().ackRequest( update, 30 * 1000 );
                     break;
             }
         }

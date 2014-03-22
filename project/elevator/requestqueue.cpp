@@ -66,14 +66,13 @@ void RequestQueue::push( Request r ) {
         _signal.notify_all();
 }
 
-bool RequestQueue::ackRequest( StateChange change, MillisecondTime newDeadlineDelta ) {
+void RequestQueue::ackRequest( StateChange change, MillisecondTime newDeadlineDelta ) {
     auto newDeadline = newDeadlineDelta == 0
         ? wibble::Maybe< TimePoint >::Nothing()
         : wibble::Maybe< TimePoint >::Just( std::chrono::steady_clock::now()
                 + std::chrono::milliseconds( newDeadlineDelta ) );
 
     Guard g{ _lock };
-    bool found = false;
     for ( auto &req : _queue ) {
         if ( req.elevatorId() == change.state.id
                 && req.triggerType() == change.changeType
@@ -88,14 +87,12 @@ bool RequestQueue::ackRequest( StateChange change, MillisecondTime newDeadlineDe
                 req._deadlineDelta = newDeadlineDelta;
             }
             req.repeated = 0;
-            found = true;
         }
     }
     // note: it might be that we ack-ed the very first item and someone was
     // waiting for its deadline. But that is not a problem, because the next
     // item can have only later deadline and we will ignore done item in
     // waitForEarliestDeadline
-    return found;
 }
 
 int RequestQueue::size() { Guard g{ _lock }; return _queue.size(); };
