@@ -197,7 +197,6 @@ struct Main {
          */
         Elevator elevator {
             id,
-            heartbeatManager.getNew( 500 /* ms */ ),
             commandsToLocalElevator,
             stateChangesIn
         };
@@ -221,8 +220,8 @@ struct Main {
         if ( sessman.needRecoveryState() )
             elevator.recover( sessman.recoveryState() );
 
-        elevator.run();
-        scheduler.run( heartbeatManager.getNew( 1000 ), heartbeatManager.getNew( 1000 ) );
+        elevator.run( heartbeatManager.getNew( 100 ) );
+        scheduler.run( heartbeatManager.getNew( 200 ), heartbeatManager.getNew( 200 ) );
 
         // wait for 2 seconds so that everything has chance to start
         // it something fails to start in this time heartbeat will
