@@ -230,11 +230,10 @@ void Elevator::_initializeElevator() {
         // we can't set outside buttons by lights as we would assign even buttons
         // handled by other elevators
         Button bu{ ButtonType::CallUp, i };
-        if ( _elevState.upButtons.get( i, _driver ) )
-            _driver.setButtonLamp( bu, true );
+        _driver.setButtonLamp( bu, _elevState.upButtons.get( i, _driver ) );
+
         Button bd{ ButtonType::CallDown, i };
-        if ( _elevState.downButtons.get( i, _driver ) )
-            _driver.setButtonLamp( bd, true );
+        _driver.setButtonLamp( bd, _elevState.downButtons.get( i, _driver ) );
     }
     if ( _driver.getStopLamp() )
         _elevState.stopped = true;
