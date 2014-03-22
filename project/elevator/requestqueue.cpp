@@ -19,9 +19,10 @@ wibble::Maybe< Request > RequestQueue::_waitForEarliestDeadline( Guard &g, TimeP
     TimePoint now;
     std::cv_status cvs = std::cv_status::no_timeout;
     while ( cvs == std::cv_status::no_timeout ) {
-        bool cleaned = true;
+        bool cleaned;
         // we need to to do what was only flagged by ackRequest
         do {
+            cleaned = true;
             // clean done requests
             while ( !_queue.empty() && _queue.top().type == RequestType::Done ) {
                 cleaned = false;
