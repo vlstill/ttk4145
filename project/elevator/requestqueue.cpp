@@ -42,12 +42,12 @@ wibble::Maybe< Request > RequestQueue::_waitForEarliestDeadline( Guard &g, TimeP
         // get earliest deadline
         deadline = _earliestDeadline( g, d0 );
         // wait if necessary
-        if ( deadline >= (now = std::chrono::steady_clock::now()) )
+        if ( deadline <= (now = std::chrono::steady_clock::now()) )
             break;
         cvs = _signal.wait_until( g, deadline );
     }
 
-    if ( !_queue.empty() && _queue.top().deadline() >= now ) {
+    if ( !_queue.empty() && _queue.top().deadline() <= now ) {
         auto val = _queue.top();
         _queue.pop();
         assert( val._tweakedDeadline.isNothing(), "invalid deadline" );
