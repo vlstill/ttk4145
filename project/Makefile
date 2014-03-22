@@ -11,3 +11,10 @@ _build :
 unit : _build
 	cd _build; make unit
 
+tarball : GRUPPE-W-21.tar.gz unit
+	git archive -o GRUPPE-W-21.tar.gz --prefix=GRUPPE-W-21/ HEAD .
+
+manual : manual.pdf
+
+manual.pdf : README.md
+	 pandoc README.md -o manual.pdf
