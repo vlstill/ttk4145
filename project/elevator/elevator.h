@@ -20,11 +20,11 @@
 namespace elevator {
 
 struct Elevator {
-    Elevator( int, HeartBeat &, ConcurrentQueue< Command > &, ConcurrentQueue< StateChange > & );
+    Elevator( int, ConcurrentQueue< Command > &, ConcurrentQueue< StateChange > & );
     ~Elevator();
 
     /* spawn control loop thread and run elevator (non blocking) */
-    void run();
+    void run( HeartBeat & );
     void terminate();
 
     void assertConsistency();
@@ -39,13 +39,12 @@ struct Elevator {
     static constexpr MillisecondTime keepAlive = 500;
 
   private:
-    void _loop();
+    void _loop( HeartBeat * );
 
     std::atomic< bool > _terminate;
     ConcurrentQueue< Command > &_inCommands;
     ConcurrentQueue< StateChange > &_outState;
     Driver _driver;
-    HeartBeat &_heartbeat;
     std::thread _thread;
 
     ElevatorState _elevState;

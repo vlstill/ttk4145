@@ -20,13 +20,11 @@ std::vector< Button > genFloorButtons( const BasicDriverInfo &bi ) {
 
 Elevator::Elevator(
         int id,
-        HeartBeat &heartbeat,
         ConcurrentQueue< Command > &inCommands,
         ConcurrentQueue< StateChange > &outState
     ) : _terminate( false ),
         _inCommands( inCommands ),
         _outState( outState ),
-        _heartbeat( heartbeat ),
         _previousDirection( Direction::None ),
         _lastStateUpdate( 0 ),
         _floorButtons( genFloorButtons( _driver ) )
@@ -52,8 +50,8 @@ void Elevator::terminate() {
     _thread.join();
 }
 
-void Elevator::run() {
-    _thread = std::thread( restartWrapper( &Elevator::_loop ), this );
+void Elevator::run( HeartBeat &heartbeat ) {
+    _thread = std::thread( restartWrapper( &Elevator::_loop ), this, &heartbeat );
 }
 
 void Elevator::_addTargetFloor( int floor ) {
@@ -240,7 +238,7 @@ void Elevator::_initializeElevator() {
         _elevState.doorOpen = true;
 }
 
-void Elevator::_loop() {
+void Elevator::_loop( HeartBeat *heartbeat ) {
     // no matter whether exit is caused by terminate flag or exception
     // we want to stop elevator (ok, it works only for exceptions caught somewhere
     // above, but nothing better exists and we are catching assertions and
@@ -429,7 +427,7 @@ void Elevator::_loop() {
         // it is important to do heartbeat at the end so that we don't end up
         // beating even in case we are repeatedlay auto-restarted due to assertion
         // we don't need to care about beating too often, it is cheap and safe
-        _heartbeat.beat();
+        heartbeat->beat();
         prevFloor = currentFloor;
     }
 }
