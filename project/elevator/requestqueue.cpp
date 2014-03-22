@@ -47,7 +47,7 @@ wibble::Maybe< Request > RequestQueue::_waitForEarliestDeadline( Guard &g, TimeP
         cvs = _signal.wait_until( g, deadline );
     }
 
-    if ( !_queue.empty() && deadline >= now ) {
+    if ( !_queue.empty() && _queue.top().deadline() >= now ) {
         auto val = _queue.top();
         _queue.pop();
         assert( val._tweakedDeadline.isNothing(), "invalid deadline" );
