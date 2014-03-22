@@ -33,10 +33,7 @@ struct Elevator {
         return BasicDriverInfo( _driver );
     }
 
-    void recover( ElevatorState state ) {
-        assert( !_thread.joinable() && !_terminate, "cannot recover after start" );
-        _elevState = state;
-    }
+    void recover( ElevatorState state );
 
     // maximum time between state update packets
     static constexpr MillisecondTime keepAlive = 500;

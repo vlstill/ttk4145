@@ -40,6 +40,12 @@ Elevator::~Elevator() {
         terminate();
 }
 
+void Elevator::recover( ElevatorState state ) {
+    assert( !_thread.joinable() && !_terminate, "cannot recover after start" );
+    _elevState = state;
+    _elevState.direction = Direction::None;
+}
+
 void Elevator::terminate() {
     assert( _thread.joinable(), "control loop not running" );
     _terminate = true;
