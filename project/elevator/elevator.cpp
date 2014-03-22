@@ -182,15 +182,17 @@ FloorSet Elevator::_allButtons() const {
 bool Elevator::_shouldStop( int currentFloor ) const {
     if ( _elevState.insideButtons.get( currentFloor, _driver ) )
         return true;
+    FloorSet all = _allButtons();
     if ( _elevState.direction == Direction::Up )
         return _elevState.upButtons.get( currentFloor, _driver )
-            || ( !_allButtons().anyHigher( currentFloor, _driver )
-                    && _allButtons().get( currentFloor, _driver ) );
+            || ( !all.anyHigher( currentFloor, _driver )
+                    && all.get( currentFloor, _driver ) );
     if ( _elevState.direction == Direction::Down )
         return _elevState.downButtons.get( currentFloor, _driver )
-            || ( !_allButtons().anyLower( currentFloor, _driver )
-                    && _allButtons().get( currentFloor, _driver ) );
-    return false;
+            || ( !all.anyLower( currentFloor, _driver )
+                    && all.get( currentFloor, _driver ) );
+    return (currentFloor == _driver.minFloor() && all.get( currentFloor, _driver ))
+        || (currentFloor == _driver.maxFloor() && all.get( currentFloor, _driver ));
 }
 
 void Elevator::_clearDirectionButtonLamp() {
