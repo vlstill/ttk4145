@@ -413,6 +413,8 @@ void Elevator::_loop() {
                     _driver.setButtonLamp( Button{ ButtonType::CallDown, currentFloor }, false );
                     _emitStateChange( ChangeType::ServedUp, currentFloor );
                     _emitStateChange( ChangeType::ServedDown, currentFloor );
+                } else {
+                    _clearDirectionButtonLamp();
                 }
             }
         } else if ( state == State::Stopped ) {
