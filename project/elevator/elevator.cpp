@@ -191,6 +191,7 @@ bool Elevator::_shouldStop( int currentFloor ) const {
         || ( _elevState.direction == Direction::Down
                 && _elevState.downButtons.get( currentFloor, _driver ) )
         || ( _allButtons().get( currentFloor, _driver )
+                && !_elevState.insideButtons.hasAny()
                 && ( !_allButtons().anyOther( currentFloor, _driver )
                     || _allButtons() == _elevState.upButtons
                     || _allButtons() == _elevState.downButtons) );
