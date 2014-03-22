@@ -180,21 +180,16 @@ FloorSet Elevator::_allButtons() const {
 }
 
 bool Elevator::_shouldStop( int currentFloor ) const {
-    /* stop if this floor was requested from inside or if we are moving
-     * in direction of pressed outside button
-     * the special case of topmost/bottommost floor need not to be
-     * handled as elevator stops there anyway
-     */
-    return   _elevState.insideButtons.get( currentFloor, _driver )
-        || ( _elevState.direction == Direction::Up
-                && _elevState.upButtons.get( currentFloor, _driver ) )
-        || ( _elevState.direction == Direction::Down
-                && _elevState.downButtons.get( currentFloor, _driver ) )
-        || ( _allButtons().get( currentFloor, _driver )
-                && !_elevState.insideButtons.hasAny()
-                && ( !_allButtons().anyOther( currentFloor, _driver )
-                    || _allButtons() == _elevState.upButtons
-                    || _allButtons() == _elevState.downButtons) );
+    if ( _elevState.insideButtons.get( currentFloor, _driver ) )
+        return true;
+    if ( _elevState.direction == Direction::Up )
+        return _elevState.upButtons.get( currentFloor, _driver )
+            || ( !_allButtons().anyHigher( currentFloor, _driver )
+                    && _allButtons().get( currentFloor, _driver ) );
+    if ( _elevState.direction == Direction::Down )
+        return _elevState.downButtons.get( currentFloor, _driver )
+            || ( !_allButtons().anyLower( currentFloor, _driver )
+                    && _allButtons().get( currentFloor, _driver ) );
 }
 
 void Elevator::_clearDirectionButtonLamp() {
